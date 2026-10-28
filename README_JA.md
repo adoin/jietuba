@@ -98,7 +98,7 @@ C++（Qt6）で実装し、画像処理・クリップボード・PP-OCR エン�
 > 2 つの版は設定とクリップボード履歴を共有するので切り替えて使えますが、同時に起動しないでください。既定のホットキーが競合します。
 
 > [!TIP]
-> 設定は既定で `%APPDATA%\Jietuba\settings.ini` に保存されます。exe の隣に `settings.ini`（空のファイルでも可）を置くとそちらを使うので、プログラムのフォルダーをコピーすれば設定も持ち運べます。スクリーンショットの保存先、クリップボード履歴の場所、自動起動など、このパソコンでしか意味のない項目は引き続きレジストリに残ります。クリップボード履歴は既定で `%APPDATA%\pyclipboard` にあり、設定の「クリップボード」ページで場所を変えられます。
+> 設定は既定で `%APPDATA%\Jietuma\settings.ini` に保存されます。exe の隣に `settings.ini`（空のファイルでも可）を置くとそちらを使うので、プログラムのフォルダーをコピーすれば設定も持ち運べます。スクリーンショットの保存先、クリップボード履歴の場所、自動起動など、このパソコンでしか意味のない項目は引き続きレジストリに残ります。クリップボード履歴は既定で `%APPDATA%\pyclipboard` にあり、設定の「クリップボード」ページで場所を変えられます。
 
 ### 更新
 
@@ -155,7 +155,7 @@ Qt 6 の MSVC x64 SDK を持っている場合は `.\scripts\build.ps1 -QtRoot C
 
 ARM64 版は x64 上でクロスコンパイルします。先に x64 の静的 Qt をビルドし、`.\scripts\build_static_qt.ps1 -Arch arm64` と `.\build.cmd -Static -Arch arm64` を実行します。Visual Studio の MSVC ARM64 ビルドツールと `rustup target add aarch64-pc-windows-msvc` が必要です。バージョン番号はリポジトリ直下の `VERSION` ファイルから取得します。
 
-PP-OCR モデルはリポジトリの [models/](models/) にあります（`PP-OCRv6_det_small.onnx` と `PP-OCRv6_rec_small.onnx`）。Snipping Tool OCR はローカルの Windows 11 Snipping Tool のファイルを使い、初回使用時に `%LOCALAPPDATA%\Jietuba\oneocr` へ自動コピーするため、追加のダウンロードは不要です。
+PP-OCR モデルはリポジトリの [models/](models/) にあります（`PP-OCRv6_det_small.onnx` と `PP-OCRv6_rec_small.onnx`）。Snipping Tool OCR はローカルの Windows 11 Snipping Tool のファイルを使い、初回使用時に `%LOCALAPPDATA%\Jietuma\oneocr` へ自動コピーするため、追加のダウンロードは不要です。
 
 ---
 
@@ -441,7 +441,7 @@ clipboard/
 ```text
 core/
 ├── bootstrap.h/.cpp            # PreloadManager — 起動ブートストラップ、環境初期化、DPI、シングルインスタンス
-├── data_location.h/.cpp        # 設定ファイルの場所：exe の隣に settings.ini があればそれ、なければ %APPDATA%\Jietuba
+├── data_location.h/.cpp        # 設定ファイルの場所：exe の隣に settings.ini があればそれ、なければ %APPDATA%\Jietuma
 ├── game_mode_monitor.h/.cpp    # GameModeMonitor — 前面の切り替えを追ってゲームが前面にあるかを判定（「ゲーム中はホットキーを停止」用）
 ├── elevation.h/.cpp            # 管理者として実行 — 権限昇格の状態判定、スタートアップ用タスク
 ├── logger.h/.cpp               # Logger — ファイル＋コンソールログ（debug/info/warning/error/exception）
@@ -629,7 +629,7 @@ settings/
 **主な機能:**
 - シングルトンの設定マネージャー。すべての設定を 1 つの表に登録
 - 各描画ツールの色、線幅、フォントサイズなどのパラメーターを管理
-- 設定は `settings.ini`（exe の隣または `%APPDATA%\Jietuba`）に保存し、このパソコンでしか意味のない項目はレジストリに残す
+- 設定は `settings.ini`（exe の隣または `%APPDATA%\Jietuma`）に保存し、このパソコンでしか意味のない項目はレジストリに残す
 - 初回起動時に旧版のレジストリの設定を `settings.ini` にコピー。削除はしないので旧版に戻しても使える
 
 ---

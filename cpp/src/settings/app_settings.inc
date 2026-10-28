@@ -115,7 +115,7 @@ SETTING(screenshot_save_enabled, "app/screenshot_save_enabled", bool, true, Impo
 SETTING(screenshot_pin_save_enabled, "app/screenshot_pin_save_enabled", bool, false, Import, Gen, Gen)
 SETTING(screenshot_save_original_enabled, "app/screenshot_save_original_enabled", bool, false, Import, Gen, Gen)
 // Absolute paths seldom exist on another computer: the save, dialog, log and clipboard database folders stay Local.
-SETTING(screenshot_save_path, "app/screenshot_save_path", QString, QDir::toNativeSeparators(QDir::homePath() + "/Pictures/jietuba_photos"), Local, Own, Own)
+SETTING(screenshot_save_path, "app/screenshot_save_path", QString, QDir::toNativeSeparators(QDir::homePath() + "/Pictures/" + QStringLiteral(JTM_NAME) + "_photos"), Local, Own, Own)
 SETTING(screenshot_format, "app/screenshot_format", QString, "PNG", Import, Gen, Own)
 SETTING(screenshot_quality, "app/screenshot_quality", int, 85, Internal, Gen, Own)
 SETTING(save_dialog_style, "app/save_dialog_style", QString, "modern", Import, Gen, Gen)

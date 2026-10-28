@@ -1,4 +1,5 @@
 #include "core/constants.h"
+#include "core/brand_config.h"
 #include "core/i18n.h"
 #include "core/logger.h"
 #include <QDir>
@@ -9,7 +10,7 @@ namespace jietuba {
 QString get_app_data_dir() {
     // %LOCALAPPDATA% rather than home/AppData/Local: domain profiles may redirect the home
     // directory. Shared with the Python version, like the settings.
-    const QString folder = "Jietuba";
+    const QString folder = QStringLiteral(JTM_DISPLAY_NAME);
     const auto base = qEnvironmentVariable("LOCALAPPDATA");
     if (!base.isEmpty()) return QDir(base).filePath(folder);
     return QDir(QDir::homePath()).filePath("AppData/Local/" + folder);

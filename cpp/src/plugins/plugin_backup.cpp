@@ -4,6 +4,7 @@
 #include "clipboard/ui/windows/clipboard_window.h"
 #include "clipboard/ui/widgets/group_bar.h"
 #include "core/i18n.h"
+#include "core/brand_config.h"
 #include "core/ui_scale.h"
 #include "settings/tool_settings.h"
 #include "ui/dialogs.h"
@@ -200,7 +201,7 @@ void restore_clipboard(QWidget *parent, clipboard::ClipboardManager &manager) {
         show_warning_dialog(parent, tr("Clipboard Backup"), tr("Restore failed or was cancelled. Check the password and backup file."));
         return;
     }
-    const QString destination = QDir(folder).filePath("jietuba-restored-" + QUuid::createUuid().toString(QUuid::Id128).left(12));
+    const QString destination = QDir(folder).filePath(QStringLiteral(JTM_NAME "-restored-") + QUuid::createUuid().toString(QUuid::Id128).left(12));
     if (!QDir().rename(staging.path(), destination)) { show_warning_dialog(parent, tr("Clipboard Backup"), tr("Could not create the restore folder.")); return; }
     staging.setAutoRemove(false);
     if (!show_confirm_dialog(parent, tr("Clipboard Backup"), tr("Restored to %1. Use this history now? Current data will be kept.").arg(QDir::toNativeSeparators(destination)))) return;

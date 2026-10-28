@@ -1,4 +1,5 @@
 #pragma once
+#include "core/brand_config.h"
 #include <algorithm>
 #include <memory>
 #include <optional>

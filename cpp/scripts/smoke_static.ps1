@@ -15,7 +15,8 @@ $process = Start-Process -FilePath $Exe -WorkingDirectory $root -WindowStyle Hid
 Start-Sleep -Seconds $Seconds
 $alive = -not $process.HasExited
 if ($alive) { Stop-Process -Id $process.Id -Force }
-$logDir = "$root\LocalAppData\Jietuba\Logs"
+$brand = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\..\branding.json') -Raw | ConvertFrom-Json
+$logDir = Join-Path $root "LocalAppData\$($brand.display_name)\Logs"
 $log = Get-ChildItem -LiteralPath $logDir -Filter 'runtime_cpp_*.log' -ErrorAction SilentlyContinue | Select-Object -First 1
 $crash = Get-ChildItem -LiteralPath $logDir -Filter 'crash_cpp.log' -ErrorAction SilentlyContinue
 if ($log) { Get-Content -LiteralPath $log.FullName | Select-String -Pattern '\[(ERROR|WARNING)\]' | ForEach-Object { Write-Host "log: $($_.Line)" } }
@@ -24,7 +25,6 @@ if (-not $alive) { throw "The app exited within $Seconds s (exit code $($process
 if (-not $log) { throw 'The app wrote no runtime log.' }
 if ($crash) { throw 'The app wrote a crash log.' }
 # The full exe puts its embedded ONNX Runtime into models\ when none is there; the package has none.
-$brand = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\..\branding.json') -Raw | ConvertFrom-Json
 if ((Split-Path $Exe -Leaf) -eq "$($brand.name)_pp.exe") {
     $runtime = Join-Path (Split-Path $Exe -Parent) 'models\onnxruntime.dll'
     if (-not (Test-Path -LiteralPath $runtime) -or (Get-Item -LiteralPath $runtime).Length -lt 10MB) { throw "The full exe did not put onnxruntime.dll into $runtime." }

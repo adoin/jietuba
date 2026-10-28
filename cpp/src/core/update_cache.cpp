@@ -91,7 +91,7 @@ void sweep(const QString &root) {
 QString cache_root() {
     const QString local = qEnvironmentVariable("LOCALAPPDATA");
     if (local.isEmpty()) throw std::runtime_error("LOCALAPPDATA is not set");
-    const QString parent = QDir::cleanPath(child(local, "jietuba"));
+    const QString parent = QDir::cleanPath(child(local, QStringLiteral(JTM_NAME)));
     const QString root = child(parent, "updater");
     if (QFileInfo::exists(parent) && !plain(parent, true)) throw std::runtime_error("Updater cache must not be a link or junction");
     if (!QDir().mkpath(root)) throw std::runtime_error("Cannot create the updater cache");

@@ -70,7 +70,8 @@ fn cache(args: &HashMap<String, String>) -> Result<PathBuf> {
             code: "path",
             message: "LOCALAPPDATA 不可用".into(),
         })?)
-        .join("jietuba/updater")
+        .join(env!("JTM_NAME"))
+        .join("updater")
     };
     if !root.is_absolute() {
         return core::fail("path", "缓存路径必须为绝对路径");
@@ -291,7 +292,7 @@ fn alert(error: &core::Error, localized: Option<&str>) {
     // The application supplies the text in its UI language; the code stays for diagnosis.
     let message = match localized {
         Some(text) => format!("{text}\n\n({})", error.code),
-        None => format!("截图吧更新未完成：{error}\n已保留备份和恢复记录。"),
+        None => format!("{} 更新未完成：{error}\n已保留备份和恢复记录。", env!("JTM_DISPLAY_NAME")),
     };
     #[cfg(windows)]
     {
@@ -299,7 +300,7 @@ fn alert(error: &core::Error, localized: Option<&str>) {
             .encode_utf16()
             .chain(Some(0))
             .collect();
-        let title: Vec<u16> = "jietuba update".encode_utf16().chain(Some(0)).collect();
+        let title: Vec<u16> = format!("{} update", env!("JTM_DISPLAY_NAME")).encode_utf16().chain(Some(0)).collect();
         unsafe {
             windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
                 std::ptr::null_mut(),

@@ -96,7 +96,7 @@
 > 两个版本共用设置和剪贴板历史，可以互相换用，但不要同时运行，默认快捷键会冲突。
 
 > [!TIP]
-> 设置默认保存在 `%APPDATA%\Jietuba\settings.ini`。在 exe 旁放一个 `settings.ini`（空文件也可以），程序就改用它，复制程序文件夹即可带走设置。截图保存目录、剪贴板历史位置、开机自启这类只对本机有意义的项仍留在注册表；剪贴板历史默认在 `%APPDATA%\pyclipboard`，可在设置的「剪贴板」页更换位置。
+> 设置默认保存在 `%APPDATA%\Jietuma\settings.ini`。在 exe 旁放一个 `settings.ini`（空文件也可以），程序就改用它，复制程序文件夹即可带走设置。截图保存目录、剪贴板历史位置、开机自启这类只对本机有意义的项仍留在注册表；剪贴板历史默认在 `%APPDATA%\pyclipboard`，可在设置的「剪贴板」页更换位置。
 
 ### 更新
 
@@ -155,7 +155,7 @@ python -m venv .tools
 
 ARM64 版在 x64 上交叉编译：先编好 x64 静态 Qt，再运行 `.\scripts\build_static_qt.ps1 -Arch arm64` 和 `.\build.cmd -Static -Arch arm64`，需要 Visual Studio 的 MSVC ARM64 生成工具和 `rustup target add aarch64-pc-windows-msvc`。版本号取自仓库根目录的 `VERSION` 文件。
 
-PP-OCR 模型放在仓库的 [models/](models/) 目录中，包括 `PP-OCRv6_det_small.onnx` 和 `PP-OCRv6_rec_small.onnx`。截图工具 OCR 所需文件取自本机的 Windows 11 截图工具，首次使用时自动复制到 `%LOCALAPPDATA%\Jietuba\oneocr`，不需要另外下载。
+PP-OCR 模型放在仓库的 [models/](models/) 目录中，包括 `PP-OCRv6_det_small.onnx` 和 `PP-OCRv6_rec_small.onnx`。截图工具 OCR 所需文件取自本机的 Windows 11 截图工具，首次使用时自动复制到 `%LOCALAPPDATA%\Jietuma\oneocr`，不需要另外下载。
 
 ---
 
@@ -442,7 +442,7 @@ clipboard/
 ```text
 core/
 ├── bootstrap.h/.cpp            # PreloadManager — 启动引导，环境初始化、DPI感知、单实例控制、链式预加载
-├── data_location.h/.cpp        # 设置文件的位置：exe 旁有 settings.ini 就用它，否则用 %APPDATA%\Jietuba
+├── data_location.h/.cpp        # 设置文件的位置：exe 旁有 settings.ini 就用它，否则用 %APPDATA%\Jietuma
 ├── game_mode_monitor.h/.cpp    # GameModeMonitor — 跟随前台切换判断游戏是否在前台，供「玩游戏时暂停热键」使用
 ├── elevation.h/.cpp            # 以管理员身份运行 — 提权状态判断、开机自启用的计划任务
 ├── logger.h/.cpp               # Logger — 文件+控制台日志系统，支持多级别 (debug/info/warning/error/exception)
@@ -629,7 +629,7 @@ settings/
 **核心功能：**
 - 单例模式的配置管理器，所有设置登记在一张表里
 - 管理各绘图工具的颜色、线宽、字体大小等参数
-- 设置存进 `settings.ini`（exe 旁或 `%APPDATA%\Jietuba`），只对本机有意义的项留在注册表
+- 设置存进 `settings.ini`（exe 旁或 `%APPDATA%\Jietuma`），只对本机有意义的项留在注册表
 - 首次启动时把旧版注册表里的设置复制进 `settings.ini`，只复制不删除，退回旧版照常可用
 
 ---

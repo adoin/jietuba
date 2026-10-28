@@ -18,7 +18,7 @@ QString models_root();
 // Tests point models/ at a temporary folder; empty restores the default.
 void set_models_root_for_test(const QString &root);
 // Where the full package puts its embedded ONNX Runtime when models/ cannot be written:
-// %LOCALAPPDATA%/Jietuba/runtime/<arch>/onnxruntime.dll.
+// %LOCALAPPDATA%/Jietuma/runtime/<arch>/onnxruntime.dll.
 QString fallback_runtime_path();
 // The ONNX Runtime this build loads: models/onnxruntime.dll, or the fallback copy when only that one
 // is usable. Downloads still go to models/, so with neither usable this is the models/ path.

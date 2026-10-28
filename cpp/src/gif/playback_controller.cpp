@@ -1,5 +1,6 @@
 #include "gif/playback_controller.h"
 #include "core/i18n.h"
+#include "core/brand_config.h"
 #include "core/logger.h"
 #include "core/ui_theme.h"
 #include "gif/composer.h"
@@ -386,6 +387,6 @@ QString PlaybackController::make_save_path() {
     }
     QDir().mkpath(save_dir);
     const QString ts = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
-    return QDir::toNativeSeparators(QDir(save_dir).filePath(QString("jietuba_gif_%1.gif").arg(ts)));
+    return QDir::toNativeSeparators(QDir(save_dir).filePath(QStringLiteral(JTM_NAME "_gif_%1.gif").arg(ts)));
 }
 }

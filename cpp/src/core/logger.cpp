@@ -1,4 +1,5 @@
 #include "core/logger.h"
+#include "core/branding.h"
 #include "core/constants.h"
 #include "core/i18n.h"
 #include "settings/tool_settings.h"
@@ -203,7 +204,7 @@ void Logger::write_header() {
                            {"log_dir", QDir::toNativeSeparators(log_dir)},
                            {"file_level", LogLevel::name(min_level)},
                            {"console_level", LogLevel::name(console_min_level)}}).render();
-    log_file_.write(header.toUtf8());
+    log_file_.write(brand_display(header).toUtf8());
     log_file_.flush();
 }
 

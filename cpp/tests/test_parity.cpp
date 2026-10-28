@@ -142,7 +142,7 @@ private slots:
         const auto app = fixtures_["app_reads"].toObject();
         for (auto it = app.begin(); it != app.end(); ++it) {
             if (it.key() == "screenshot_save_path") {
-                QCOMPARE(config.get_app_setting(it.key()).toString(), QDir::toNativeSeparators(QDir::homePath() + "/Pictures/jietuba_photos"));
+                QCOMPARE(config.get_app_setting(it.key()).toString(), QDir::toNativeSeparators(QDir::homePath() + "/Pictures/" + QStringLiteral(JTM_NAME) + "_photos"));
             } else if (it.key() == "log_dir") {
                 // The fixture holds a placeholder: the folder depends on the machine.
                 QCOMPARE(config.get_app_setting(it.key()).toString(), QDir::toNativeSeparators(get_log_dir()));

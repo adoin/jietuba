@@ -96,7 +96,7 @@ Both packages prefer the Snipping Tool OCR by default (faster, more languages); 
 > Both packages share settings and clipboard history, so you can switch between them, but do not run both at once: the default hotkeys conflict.
 
 > [!TIP]
-> Settings are kept in `%APPDATA%\Jietuba\settings.ini`. Put a `settings.ini` next to the exe (an empty file is enough) and the program uses that one instead, so copying the program folder takes the settings along. Settings that only make sense on this computer, such as the screenshot save folder, the clipboard history location and autostart, stay in the registry; the clipboard history is in `%APPDATA%\pyclipboard` by default and can be moved on the Clipboard page of the settings.
+> Settings are kept in `%APPDATA%\Jietuma\settings.ini`. Put a `settings.ini` next to the exe (an empty file is enough) and the program uses that one instead, so copying the program folder takes the settings along. Settings that only make sense on this computer, such as the screenshot save folder, the clipboard history location and autostart, stay in the registry; the clipboard history is in `%APPDATA%\pyclipboard` by default and can be moved on the Clipboard page of the settings.
 
 ### Updates
 
@@ -153,7 +153,7 @@ The released single-file builds link Qt and the MSVC runtime statically and depe
 
 The ARM64 build is cross-compiled on x64: build the x64 static Qt first, then run `.\scripts\build_static_qt.ps1 -Arch arm64` and `.\build.cmd -Static -Arch arm64`. It needs Visual Studio's MSVC ARM64 build tools and `rustup target add aarch64-pc-windows-msvc`. The version number comes from the repository's `VERSION` file.
 
-The PP-OCR models are in the repository's [models/](models/) directory: `PP-OCRv6_det_small.onnx` and `PP-OCRv6_rec_small.onnx`. Snipping Tool OCR uses files from the local Windows 11 Snipping Tool, copied to `%LOCALAPPDATA%\Jietuba\oneocr` on first use; nothing else needs to be downloaded.
+The PP-OCR models are in the repository's [models/](models/) directory: `PP-OCRv6_det_small.onnx` and `PP-OCRv6_rec_small.onnx`. Snipping Tool OCR uses files from the local Windows 11 Snipping Tool, copied to `%LOCALAPPDATA%\Jietuma\oneocr` on first use; nothing else needs to be downloaded.
 
 ---
 
@@ -439,7 +439,7 @@ Logging, resource loading, theme management, i18n, hotkeys, and other infrastruc
 ```text
 core/
 ├── bootstrap.h/.cpp            # PreloadManager — startup bootstrap, env init, DPI, single instance
-├── data_location.h/.cpp        # Where the settings file lives: settings.ini next to the exe when there is one, else %APPDATA%\Jietuba
+├── data_location.h/.cpp        # Where the settings file lives: settings.ini next to the exe when there is one, else %APPDATA%\Jietuma
 ├── game_mode_monitor.h/.cpp    # GameModeMonitor — follows foreground switches to tell when a game is in front, for "Pause Hotkeys While Gaming"
 ├── elevation.h/.cpp            # Run as administrator — elevation state, scheduled task for sign-in
 ├── logger.h/.cpp               # Logger — file + console logging (debug/info/warning/error/exception)
@@ -627,7 +627,7 @@ settings/
 **Core Features:**
 - Singleton configuration manager, with every setting listed in one table
 - Manages the colour, line width, font size and other parameters of each drawing tool
-- Settings are stored in `settings.ini` (next to the exe or in `%APPDATA%\Jietuba`); those that only make sense on this computer stay in the registry
+- Settings are stored in `settings.ini` (next to the exe or in `%APPDATA%\Jietuma`); those that only make sense on this computer stay in the registry
 - On first start the settings older versions kept in the registry are copied into `settings.ini`; nothing is deleted, so going back to an older version still works
 
 ---
