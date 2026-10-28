@@ -36,8 +36,6 @@ ZIP 根目录包含 `plugin.json`，其中 `id` 由小写字母、数字、点�
 
 请求是 `{"api_version":2,"type":"extension","event":"...","command":"...","payload":{...},"context":{...}}`。事件的 `command` 为空，工具栏命令的 `event` 为 `command`。`context` 包含 `session_id`、`action`、选区坐标 `selection`；截图内容为敏感信息，只有声明了相应事件或命令的已启用插件才会收到。插件返回 `{"api_version":2,"ok":true,"payload":{...}}`；省略 `payload` 表示保持输入，`ok:false` 表示失败。截图链的数据类型为 `{"kind":"image","data":"<PNG Base64>"}`、`{"kind":"text","data":"..."}` 或 `{"kind":"none"}`；总 JSON 上限 8 MiB，图片不超过 6400 万像素。导出前图片超过限制时中止导出；导出通知若图片超过限制则只携带 `none`。
 
-示例插件 `screenshot-image-info` 和 `screenshot-dimensions` 演示图片 → 尺寸文本 → 格式化文本的跨插件处理链；需要同时安装两个包。
-
 ## 剪贴板能力
 
 在 `contributes.clipboard` 中可组合声明 `preview`、`action`、`metadata` 和 `backup`。前三者声明 `content_types`，命令型能力的 `command` 必须在 `contributes.commands` 注册。预览命令接收 `payload.kind: "clipboard"`，`data` 中包含 `content_type`、`sub_kind`、`content`、`language`、`paths` 和可选 `html`。清单中的 `formats` 最多声明 8 种原始格式，符合限制的数据通过 `formats_base64` 提供。预览返回 `payload: {"kind":"preview","data":{"kind":"text|html|markdown|image","content":"..."}}`；不适用时返回 `payload: {"kind":"none"}`。预览失败、无效或超时后回退到内置预览。
