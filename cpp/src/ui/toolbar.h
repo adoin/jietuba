@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QFont>
 #include <QHash>
+#include <QMap>
 #include <QPointer>
 #include <QPushButton>
 #include <QTimer>
@@ -24,6 +25,7 @@ class ShapeSettingsPanel;
 class TextSettingsPanel;
 class WatermarkSettingsPanel;
 struct ToolContext;
+namespace plugins { struct ToolbarContribution; }
 
 // Drag grip at the toolbar's left end, the same vertical grey dots as the "..." on the right.
 // Light dots while positioned automatically; dark once moved by hand (double-click resets).
@@ -95,7 +97,8 @@ public:
     // Capture and pin toolbars each read their own layout (layout_profile) and share the arranging. A constructor
     // argument rather than an override: this constructor already arranges the buttons.
     explicit Toolbar(QWidget *parent = nullptr, const toolbar_layout::LayoutProfile &layout_profile = toolbar_layout::SCREENSHOT);
-    const toolbar_layout::LayoutProfile &layout_profile;
+    toolbar_layout::LayoutProfile layout_profile;
+    void add_plugin_buttons(const QList<plugins::ToolbarContribution> &contributions);
     // Subclasses with a different constructor flow call this themselves.
     void init_ui();
     // Rearranges per the user's layout: shown buttons on the bar, folded ones for the popup, "..." last.
@@ -161,6 +164,7 @@ signals:
     void text_recognize_clicked();
     void scan_code_clicked();
     void gif_record_clicked();
+    void plugin_clicked(const QString &plugin, const QString &id);
     void color_changed(const QColor &color);
     void number_style_changed(const QString &style);
     void stroke_width_changed(int width);
@@ -257,6 +261,7 @@ private:
     QHash<QString, QAbstractButton *> buttons_;
     QHash<QString, double> base_widths_;
     QHash<QString, QString> icon_paths_;
+    QMap<QString, QString> plugin_button_names_;
     std::vector<std::pair<QPointer<QWidget>, QString>> tooltip_sources_;
     QPointer<ToolbarMorePopup> more_popup_;
     QTimer *more_close_timer_ = nullptr;

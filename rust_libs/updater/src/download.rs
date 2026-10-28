@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub const LATEST: &str = "https://api.github.com/repos/1003129155/jietuba/releases/latest";
+pub const LATEST: &str = concat!("https://api.github.com/repos/", env!("JTM_REPOSITORY"), "/releases/latest");
 pub fn parse_release(data: &Value, arch: Arch, variant: AppVariant) -> Result<Release> {
     if data.get("draft").and_then(Value::as_bool) == Some(true)
         || data.get("prerelease").and_then(Value::as_bool) == Some(true)
@@ -65,7 +65,7 @@ pub fn parse_release(data: &Value, arch: Arch, variant: AppVariant) -> Result<Re
             .chars()
             .take(12000)
             .collect(),
-        url: format!("https://github.com/1003129155/jietuba/releases/tag/{tag}"),
+        url: format!("https://github.com/{}/releases/tag/{tag}", env!("JTM_REPOSITORY")),
         asset_name: filename,
         arch,
         artifact: DownloadArtifact {
@@ -76,7 +76,7 @@ pub fn parse_release(data: &Value, arch: Arch, variant: AppVariant) -> Result<Re
 }
 pub fn client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
-        .user_agent("jietuba-updater")
+        .user_agent(concat!(env!("JTM_NAME"), "-updater"))
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(900))
         .build()
@@ -103,6 +103,7 @@ mod tests {
                 let release = parse_release(&payload, arch, variant).unwrap();
                 assert_eq!(release.asset_name, variant.asset_name(tag, arch));
                 assert_eq!(release.arch, arch);
+                assert_eq!(release.url, format!("https://github.com/{}/releases/tag/{tag}", env!("JTM_REPOSITORY")));
             }
         }
     }
@@ -110,7 +111,7 @@ mod tests {
     #[test]
     fn missing_lite_package_does_not_fall_back_to_full() {
         let payload = json!({"tag_name": "release-2.2.0", "assets": [{
-            "name": "jietuba_pp-release-2.2.0-x64.zip",
+            "name": AppVariant::Full.asset_name("release-2.2.0", Arch::X64),
             "browser_download_url": "https://example.com/full.zip",
         }]});
         assert_eq!(

@@ -250,6 +250,22 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
     menu->addSeparator();
     QAction *add_act = menu->addAction(tr("Add Content"));
     QObject::connect(add_act, &QAction::triggered, menu, o.on_add_item);
+    if (o.on_install_plugin) {
+        QAction *install = menu->addAction(tr("Install Plugin"));
+        QObject::connect(install, &QAction::triggered, menu, o.on_install_plugin);
+    }
+    if (o.on_manage_plugins) {
+        QAction *manage = menu->addAction(tr("Manage Plugins"));
+        QObject::connect(manage, &QAction::triggered, menu, o.on_manage_plugins);
+    }
+    if (o.on_backup_clipboard) {
+        QAction *backup = menu->addAction(tr("Backup Clipboard"));
+        QObject::connect(backup, &QAction::triggered, menu, o.on_backup_clipboard);
+    }
+    if (o.on_restore_clipboard) {
+        QAction *restore = menu->addAction(tr("Restore Clipboard"));
+        QObject::connect(restore, &QAction::triggered, menu, o.on_restore_clipboard);
+    }
     if (o.on_clear_history) {
         QAction *clear_act = menu->addAction(tr("Clear History"));
         QObject::connect(clear_act, &QAction::triggered, menu, o.on_clear_history);

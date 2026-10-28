@@ -29,6 +29,7 @@ ClipboardItem ClipboardItem::from_json(const QJsonObject &object) {
     item.id = object.value("id").toInteger();
     item.content = object.value("content").toString();
     item.content_type = object.value("content_type").toString();
+    item.has_metadata = object.value("has_metadata").toBool(false);
     item.title = optional_text(object, "title");
     item.html_content = optional_text(object, "html_content");
     item.image_id = optional_text(object, "image_id");
@@ -46,6 +47,13 @@ ClipboardItem ClipboardItem::from_json(const QJsonObject &object) {
 
 QString ClipboardItem::display_text() const {
     if (title && !title->isEmpty()) return *title;
+
+    if (content_type == "custom") {
+        const auto object = QJsonDocument::fromJson(content.toUtf8()).object();
+        QStringList names;
+        for (const auto &value : object.value("formats").toArray()) if (value.isString()) names.append(value.toString());
+        return names.isEmpty() ? content : names.join(", ");
+    }
 
     if (content_type == "text") {
         QString text = content;
@@ -86,6 +94,7 @@ QString ClipboardItem::display_text() const {
 QString ClipboardItem::icon() const {
     if (content_type == "file") return QString::fromUtf8("📁");
     if (content_type == "image") return QString::fromUtf8("📷");
+    if (content_type == "custom") return QString::fromUtf8("📋");
     return {};
 }
 

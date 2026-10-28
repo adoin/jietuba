@@ -13,6 +13,7 @@
 #include "pin/pin_canvas.h"
 #include "pin/pin_window.h"
 #include "pin/pin_manager.h"
+#include "plugins/plugin_package.h"
 #include "settings/tool_settings.h"
 #include "tools/controller.h"
 #include "ui/mask_overlay.h"
@@ -44,6 +45,7 @@
 #include <QClipboard>
 #include <QMimeData>
 #include <QApplication>
+#include <QBuffer>
 #include <QCheckBox>
 #include <QContextMenuEvent>
 #include <QDir>
@@ -227,6 +229,124 @@ private slots:
     }
 
     // ---- Session ----
+
+    void screenshotExtensionsReceiveOrderedEventsAndRunARealToolbarChain() {
+        const QString packages = qEnvironmentVariable("JIETUBA_TEST_EXTENSION_DIR");
+        if (packages.isEmpty()) QSKIP("No screenshot extension packages supplied");
+        const QString root = plugins::plugin_directory();
+        QVERIFY(plugins::install_plugin_package(QDir(packages).filePath("screenshot-image-info-0.4.0.jtbplugin"), root).ok);
+        QVERIFY(plugins::install_plugin_package(QDir(packages).filePath("screenshot-dimensions-0.4.0.jtbplugin"), root).ok);
+        const QString fixture_dir = QDir(root).filePath("trace-extension");
+        QVERIFY(QDir().mkpath(fixture_dir));
+        QVERIFY(QFile::copy(QCoreApplication::applicationDirPath() + "/jietuba_preview_plugin_fixture.exe", QDir(fixture_dir).filePath("fixture.exe")));
+        QFile manifest(QDir(fixture_dir).filePath("plugin.json"));
+        QVERIFY(manifest.open(QIODevice::WriteOnly));
+        manifest.write(R"({"id":"trace-extension","api_version":2,"type":"extension","command":"fixture.exe","contributes":{"hooks":[{"event":"screenshot.started"},{"event":"screenshot.selection_confirmed"},{"event":"screenshot.before_export"},{"event":"screenshot.exported"},{"event":"screenshot.cancelled"},{"event":"screenshot.ended"}]}})");
+        manifest.close();
+        const QString trace = dir_.filePath("extension-events.txt");
+        qputenv("JIETUBA_EXTENSION_TEST_TRACE", trace.toUtf8());
+        auto *window = open_with_selection();
+        QVERIFY(window->scene->selection_model->is_confirmed());
+        auto *button = window->toolbar->findChild<QPushButton *>("plugin.screenshot-dimensions.copy-dimensions");
+        QVERIFY(button);
+        emit window->toolbar->plugin_clicked("screenshot-dimensions", "copy-dimensions");
+        QTRY_VERIFY_WITH_TIMEOUT(!window_ || !window_->session_active(), 20000);
+        QCOMPARE(QApplication::clipboard()->text(), QString::fromUtf8("200 × 150 px"));
+        QTRY_VERIFY_WITH_TIMEOUT([&] { QFile file(trace); return file.open(QIODevice::ReadOnly) && file.readAll().contains("screenshot.ended\n"); }(), 15000);
+        QFile events(trace);
+        QVERIFY(events.open(QIODevice::ReadOnly));
+        QCOMPARE(events.readAll(), QByteArray("screenshot.started\nscreenshot.selection_confirmed\nscreenshot.before_export\nscreenshot.exported\nscreenshot.ended\n"));
+        events.close();
+        QVERIFY(events.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        events.close();
+        auto *cancelled = open_with_selection();
+        cancelled->cleanup_and_close();
+        QTRY_VERIFY_WITH_TIMEOUT([&] { QFile file(trace); return file.open(QIODevice::ReadOnly) && file.readAll().contains("screenshot.ended\n"); }(), 15000);
+        QVERIFY(events.open(QIODevice::ReadOnly));
+        QCOMPARE(events.readAll(), QByteArray("screenshot.started\nscreenshot.selection_confirmed\nscreenshot.cancelled\nscreenshot.ended\n"));
+        events.close();
+        qunsetenv("JIETUBA_EXTENSION_TEST_TRACE");
+        QVERIFY(plugins::uninstall_plugin("trace-extension", root));
+        QVERIFY(plugins::uninstall_plugin("screenshot-dimensions", root));
+        QVERIFY(plugins::uninstall_plugin("screenshot-image-info", root));
+    }
+
+    void beforeExportHookChangesTheImageSavedByQuickSave() {
+        const QString root = plugins::plugin_directory();
+        const QString folder = QDir(root).filePath("image-transform");
+        QVERIFY(QDir().mkpath(folder));
+        QVERIFY(QFile::copy(QCoreApplication::applicationDirPath() + "/jietuba_preview_plugin_fixture.exe", QDir(folder).filePath("fixture.exe")));
+        QFile manifest(QDir(folder).filePath("plugin.json"));
+        QVERIFY(manifest.open(QIODevice::WriteOnly));
+        manifest.write(R"({"id":"image-transform","api_version":2,"type":"extension","command":"fixture.exe","contributes":{"hooks":[{"event":"screenshot.before_export"}]}})");
+        manifest.close();
+        QImage replacement(200, 150, QImage::Format_ARGB32);
+        replacement.fill(Qt::green);
+        QByteArray bytes;
+        QBuffer buffer(&bytes);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        QVERIFY(replacement.save(&buffer, "PNG"));
+        qputenv("JIETUBA_EXTENSION_TEST_IMAGE", bytes.toBase64());
+        auto *window = open_with_selection();
+        QVERIFY(window->action_handler->handle_capture_action("quick_save"));
+        QTRY_VERIFY_WITH_TIMEOUT(!window_ || !window_->session_active(), 15000);
+        const auto files = saved_files();
+        QCOMPARE(files.size(), 1);
+        const QImage saved(QDir(dir_.filePath("captures")).filePath(files.first()));
+        QVERIFY(!saved.isNull());
+        QCOMPARE(saved.pixelColor(10, 10), QColor(Qt::green));
+        qunsetenv("JIETUBA_EXTENSION_TEST_IMAGE");
+        QVERIFY(plugins::uninstall_plugin("image-transform", root));
+    }
+
+    void aFailedBeforeExportHookKeepsTheCaptureOpen() {
+        const QString root = plugins::plugin_directory();
+        const QString folder = QDir(root).filePath("failed-transform");
+        QVERIFY(QDir().mkpath(folder));
+        QVERIFY(QFile::copy(QCoreApplication::applicationDirPath() + "/jietuba_preview_plugin_fixture.exe", QDir(folder).filePath("fixture.exe")));
+        QFile manifest(QDir(folder).filePath("plugin.json"));
+        QVERIFY(manifest.open(QIODevice::WriteOnly));
+        manifest.write(R"({"id":"failed-transform","api_version":2,"type":"extension","command":"fixture.exe","contributes":{"hooks":[{"event":"screenshot.before_export"}]}})");
+        manifest.close();
+        qputenv("JIETUBA_EXTENSION_TEST_FAIL", "1");
+        auto *window = open_with_selection();
+        bool reported = false;
+        QTimer answerer;
+        answerer.setInterval(20);
+        connect(&answerer, &QTimer::timeout, this, [&] {
+            auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            if (!dialog) return;
+            reported = true;
+            dialog->accept();
+        });
+        answerer.start();
+        QVERIFY(window->action_handler->handle_capture_action("quick_save"));
+        QTRY_VERIFY_WITH_TIMEOUT(reported, 15000);
+        QVERIFY(window_ && window_->session_active());
+        QVERIFY(saved_files().isEmpty());
+        answerer.stop();
+        qunsetenv("JIETUBA_EXTENSION_TEST_FAIL");
+        QVERIFY(plugins::uninstall_plugin("failed-transform", root));
+    }
+
+    void cancellingWhileAPluginIsRunningDoesNotDeliverItsOutput() {
+        const QString root = plugins::plugin_directory();
+        const QString folder = QDir(root).filePath("slow-transform");
+        QVERIFY(QDir().mkpath(folder));
+        QVERIFY(QFile::copy(QCoreApplication::applicationDirPath() + "/jietuba_preview_plugin_fixture.exe", QDir(folder).filePath("fixture.exe")));
+        QFile manifest(QDir(folder).filePath("plugin.json"));
+        QVERIFY(manifest.open(QIODevice::WriteOnly));
+        manifest.write(R"({"id":"slow-transform","api_version":2,"type":"extension","command":"fixture.exe","contributes":{"hooks":[{"event":"screenshot.before_export"}]}})");
+        manifest.close();
+        qputenv("JIETUBA_EXTENSION_TEST_SLOW", "1");
+        auto *window = open_with_selection();
+        QVERIFY(window->action_handler->handle_capture_action("quick_save"));
+        window->cleanup_and_close();
+        QTest::qWait(2000);
+        QVERIFY(saved_files().isEmpty());
+        qunsetenv("JIETUBA_EXTENSION_TEST_SLOW");
+        QVERIFY(plugins::uninstall_plugin("slow-transform", root));
+    }
 
     void aSessionStartsWithoutToolbarAndShowsItOnceSelected() {
         auto *window = open();

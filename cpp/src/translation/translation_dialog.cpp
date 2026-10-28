@@ -1,4 +1,5 @@
 #include "translation/translation_dialog.h"
+#include "core/branding.h"
 #include "core/i18n.h"
 #include "core/logger.h"
 #include "core/platform_utils.h"
@@ -279,7 +280,7 @@ DashboardTitleBar::DashboardTitleBar(QWidget *parent) : FluentTitleBar(parent) {
     }
 
     app_name = titleLabel;
-    app_name->setText("jietuba");
+    app_name->setText(brand_name());
     app_name->setObjectName("appName");
 
     pin_button = new DashboardPinButton(this);
@@ -353,7 +354,7 @@ TranslationDialog::TranslationDialog(const QString &original_text, const QString
     is_on_top_ = config->get_translation_on_top();
 
     setObjectName("dashboardWindow");
-    setWindowTitle("jietuba");
+    setWindowTitle(brand_name());
     setMinimumSize(dialog_scaled(MINIMUM_WIDTH), dialog_scaled(MINIMUM_HEIGHT));
     resize(dialog_scaled(DEFAULT_WIDTH), dialog_scaled(DEFAULT_HEIGHT));
     setFont(QFont("Microsoft YaHei UI", dialog_scaled(10)));

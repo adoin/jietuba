@@ -35,7 +35,7 @@ const std::pair<QString, const char *> MODE_NAMES[] = {
     {toolbar_layout::SHOW, "Always show"}, {toolbar_layout::MORE, "In more menu"}, {toolbar_layout::HIDE, "Always hide"}};
 }
 
-ToolbarLayoutRow::ToolbarLayoutRow(const QString &key, const QIcon &icon, QWidget *parent) : DraggableRow(parent), key(key) {
+ToolbarLayoutRow::ToolbarLayoutRow(const QString &key, const QIcon &icon, QWidget *parent, const QString &name) : DraggableRow(parent), key(key) {
     // White backing: toolbar icons are dark glyphs drawn for a white toolbar and vanish on dark themes.
     auto *icon_label = new QLabel(this);
     icon_label->setFixedSize(dialog_scaled(28), dialog_scaled(28));
@@ -50,7 +50,8 @@ ToolbarLayoutRow::ToolbarLayoutRow(const QString &key, const QIcon &icon, QWidge
     layout->setSpacing(dialog_scaled(10));
     layout->addWidget(grip);
     layout->addWidget(icon_label);
-    auto *name_label = new BodyLabel(tld_tr(button_name(key)), this);
+    auto *name_label = new BodyLabel(name.isEmpty() ? tld_tr(button_name(key)) : name, this);
+    name_label->setTextFormat(Qt::PlainText);
     configure_dialog_control(*name_label);
     layout->addWidget(name_label, 1);
     layout->addWidget(combo);
@@ -61,7 +62,7 @@ QString ToolbarLayoutRow::mode() const { return combo->currentData().toString();
 void ToolbarLayoutRow::set_mode(const QString &mode) { combo->setCurrentIndex(combo->findData(mode)); }
 
 ToolbarLayoutDialog::ToolbarLayoutDialog(const QJsonArray &layout, const QMap<QString, QIcon> &icons, QWidget *parent,
-                                         const toolbar_layout::LayoutProfile &profile)
+                                         const toolbar_layout::LayoutProfile &profile, const QMap<QString, QString> &names)
     : QDialog(parent), profile_(profile) {
     scale_dialog_font(*this);
     setWindowTitle(tld_tr("Customize Toolbar"));
@@ -71,7 +72,7 @@ ToolbarLayoutDialog::ToolbarLayoutDialog(const QJsonArray &layout, const QMap<QS
     list_ = new ReorderableRowList(this);
     // Locked buttons get no disabled row; only adjustable buttons have one.
     for (const auto &key : profile.order)
-        if (!profile.locked.contains(key)) rows_[key] = new ToolbarLayoutRow(key, icons.value(key));
+        if (!profile.locked.contains(key)) rows_[key] = new ToolbarLayoutRow(key, icons.value(key), nullptr, names.value(key));
     auto *hint = new CaptionLabel(tld_tr("Drag the handle to reorder. Use the drop-down to change visibility."), this);
     configure_dialog_control(*hint);
     auto *reset_btn = new TransparentPushButton(tld_tr("Restore defaults"), this);

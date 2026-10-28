@@ -1,5 +1,6 @@
 #include "clipboard/core/manager.h"
 #include "core/bootstrap.h"
+#include "core/branding.h"
 #include "core/constants.h"
 #include "core/elevation.h"
 #include "core/global_hotkey.h"
@@ -97,6 +98,16 @@ class CoreTests : public QObject {
     Q_OBJECT
     QJsonObject fixtures_;
 private slots:
+    void brandUsesLocalizedName() {
+        const QString previous = I18nManager::get_current_language();
+        QVERIFY(I18nManager::load_language("zh"));
+        QCOMPARE(brand_name(), QString::fromUtf8(JTM_DISPLAY_NAME_ZH));
+        QCOMPARE(brand_display(QString::fromUtf8("欢迎使用截图吧")), QString::fromUtf8("欢迎使用") + QString::fromUtf8(JTM_DISPLAY_NAME_ZH));
+        QVERIFY(I18nManager::load_language("en"));
+        QCOMPARE(brand_name(), QStringLiteral(JTM_DISPLAY_NAME));
+        QCOMPARE(brand_display("Welcome to Jietuba"), QStringLiteral("Welcome to ") + QStringLiteral(JTM_DISPLAY_NAME));
+        QVERIFY(I18nManager::load_language(previous));
+    }
     void initTestCase() {
         QFile file(JIETUBA_CORE_FIXTURE_PATH);
         QVERIFY(file.open(QIODevice::ReadOnly));

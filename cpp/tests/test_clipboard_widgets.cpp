@@ -1,5 +1,13 @@
 #include "clipboard_test_support.h"
 #include "clipboard/controllers/foreground_tracker.h"
+#include "plugins/plugin_package.h"
+#include "plugins/extension_host.h"
+#include "plugins/plugin_manager_dialog.h"
+#include "plugins/plugin_actions.h"
+#include "plugins/plugin_filters.h"
+#include "plugins/plugin_backup.h"
+#include "plugins/plugin_metadata.h"
+#include "clipboard/preview/preview_provider.h"
 #include "clipboard/ui/panels/setting_panel.h"
 #include "clipboard/ui/theme/theme_styles.h"
 #include "clipboard/ui/theme/themes.h"
@@ -14,16 +22,26 @@
 #include "ui/fluent_lite/segmented.h"
 #include "ui/settings_ui/dialog.h"
 #include "ui/settings_ui/special_paste_dialog.h"
+#include "ui/toolbar.h"
 #include <QBuffer>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QFile>
 #include <QListWidget>
 #include <QPainter>
+#include <QPlainTextEdit>
+#include <QProcess>
 #include <QScreen>
+#include <QScrollArea>
 #include <QSignalSpy>
 #include <QStyleOptionViewItem>
+#include <QTemporaryDir>
 #include <QTest>
+#include <QTextCursor>
 #include <QToolButton>
 #include <QWidgetAction>
+#include <QtCore/private/qzipwriter_p.h>
+#include <thread>
 
 using namespace clipboard_test;
 
@@ -287,6 +305,562 @@ private slots:
         QVERIFY(!preview->isVisible());
         preview->apply_scale();
         preview->set_display_enabled(false);
+    }
+
+    void pluginPackagesInstallAndRunSafely() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString root = dir.filePath("plugins");
+        const QString fixture = QCoreApplication::applicationDirPath() + "/jietuba_preview_plugin_fixture.exe";
+        QFile executable(fixture);
+        QVERIFY(executable.open(QIODevice::ReadOnly));
+        const QByteArray binary = executable.readAll();
+        const QByteArray manifest = R"({"id":"example","api_version":2,"type":"extension","command":"preview.exe","contributes":{"commands":["render"],"clipboard":{"preview":{"command":"render","content_types":["text"]}}}})";
+        const auto package = [&](const QString &name, const QByteArray &metadata, const QString &extra = {}) {
+            const QString path = dir.filePath(name + ".jtbplugin");
+            QZipWriter zip(path);
+            zip.addFile("plugin.json", metadata);
+            zip.addFile("preview.exe", binary);
+            if (!extra.isEmpty()) zip.addFile(extra, QByteArray("bad"));
+            zip.close();
+            return path;
+        };
+        const QString good = package("good", manifest);
+        const QByteArray legacy = R"({"id":"old","api_version":1,"type":"preview","content_types":["text"],"command":"preview.exe"})";
+        QVERIFY(!jietuba::plugins::install_plugin_package(package("legacy", legacy), root).ok);
+        const QByteArray old_extension = R"({"id":"old-extension","api_version":1,"type":"extension","command":"preview.exe","contributes":{"commands":["render"]}})";
+        QVERIFY(!jietuba::plugins::install_plugin_package(package("old-extension", old_extension), root).ok);
+        const auto installed = jietuba::plugins::install_plugin_package(good, root);
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        QCOMPARE(installed.id, QString("example"));
+        const auto preview = resolve_preview(make_item(1, "text", "hello"), ClipboardManager::instance(), root);
+        QVERIFY(preview);
+        QCOMPARE(preview->text, QString("plugin:hello"));
+        QCOMPARE(preview->provider_id, QString("example"));
+        QVERIFY(!resolve_preview(make_item(2, "file", "{}"), ClipboardManager::instance(), root));
+        QCOMPARE(jietuba::plugins::installed_plugins(root).size(), 1);
+        bool manager_seen = false;
+        QTimer::singleShot(0, [&] {
+            QWidget *dialog = QApplication::activeModalWidget();
+            if (!dialog) for (auto *window : QApplication::topLevelWidgets())
+                if (window->objectName() == "pluginManagerDialog") { dialog = window; break; }
+            auto *list = dialog ? dialog->findChild<QListWidget *>("pluginList") : nullptr;
+            if (list && list->count() == 1) {
+                manager_seen = true;
+                list->item(0)->setCheckState(Qt::Unchecked);
+            }
+            if (auto *window = qobject_cast<QDialog *>(dialog)) window->accept();
+        });
+        QWidget owner;
+        jietuba::plugins::show_plugin_manager(&owner, root);
+        QVERIFY(manager_seen);
+        QVERIFY(!jietuba::plugins::installed_plugins(root).first().enabled);
+        QVERIFY(jietuba::plugins::set_plugin_enabled("example", true, root));
+        QVERIFY(jietuba::plugins::set_plugin_enabled("example", false, root));
+        QVERIFY(!resolve_preview(make_item(1, "text", "hello"), ClipboardManager::instance(), root));
+        QVERIFY(jietuba::plugins::save_plugin_config("example", QJsonObject{{"ignored_apps", "secret.exe"}}, root));
+        QVERIFY(jietuba::plugins::install_plugin_package(good, root).ok);
+        QVERIFY(!jietuba::plugins::installed_plugins(root).first().enabled);
+        QCOMPARE(jietuba::plugins::read_plugin_config("example", root).value("ignored_apps").toString(), QString("secret.exe"));
+        QVERIFY(jietuba::plugins::set_plugin_enabled("example", true, root));
+        QVERIFY(resolve_preview(make_item(1, "text", "still works"), ClipboardManager::instance(), root));
+        QVERIFY(!resolve_preview(make_item(1, "text", "slow"), ClipboardManager::instance(), root));
+        QVERIFY(!jietuba::plugins::install_plugin_package(package("unsafe", manifest, "../escape.txt"), dir.filePath("other")).ok);
+        QVERIFY(!QFileInfo::exists(dir.filePath("escape.txt")));
+        QVERIFY(!jietuba::plugins::install_plugin_package(package("bad", "{}"), dir.filePath("other")).ok);
+        const QByteArray action_manifest = R"({"id":"null-action","api_version":2,"type":"extension","command":"preview.exe","contributes":{"commands":["transform"],"clipboard":{"action":{"command":"transform","content_types":["text"]}}}})";
+        QVERIFY(jietuba::plugins::install_plugin_package(package("null-action", action_manifest), root).ok);
+        auto nul_item = make_item(9, "text", QString("a") + QChar(u'\0') + "b");
+        QObject context;
+        bool finished = false;
+        std::optional<QString> output;
+        QVERIFY(jietuba::plugins::run_action("null-action", nul_item, ClipboardManager::instance(), &context,
+                                            [&](std::optional<QString> value) { output = value; finished = true; }, root));
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 7000);
+        QVERIFY(!output);
+        QVERIFY(jietuba::plugins::uninstall_plugin("null-action", root));
+        QVERIFY(!jietuba::plugins::uninstall_plugin("../other", root));
+        QVERIFY(jietuba::plugins::uninstall_plugin("example", root));
+        QVERIFY(jietuba::plugins::installed_plugins(root).isEmpty());
+        QCOMPARE(jietuba::plugins::read_plugin_config("example", root).value("ignored_apps").toString(), QString("secret.exe"));
+        const QByteArray filter_manifest = R"({"id":"bad-filter","api_version":2,"type":"extension","command":"preview.exe","contributes":{"hooks":[{"event":"clipboard.before_capture","content_types":["text"]}]}})";
+        QVERIFY(jietuba::plugins::install_plugin_package(package("bad-filter", filter_manifest), root).ok);
+        bool failed = false;
+        const QByteArray capture = R"({"content_type":"text","content":"sample"})";
+        QVERIFY(!jietuba::plugins::allow_capture(capture, root, &failed));
+        QVERIFY(failed);
+        QFile corrupt(QDir(root).filePath("bad-filter/plugin.json"));
+        QVERIFY(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        corrupt.write("{}");
+        corrupt.close();
+        QVERIFY(!jietuba::plugins::allow_capture(capture, root, &failed));
+        QVERIFY(failed);
+        QVERIFY(!jietuba::plugins::installed_plugins(root).isEmpty());
+        QVERIFY(jietuba::plugins::set_plugin_enabled("bad-filter", false, root));
+        QVERIFY(jietuba::plugins::allow_capture(capture, root, &failed));
+        QVERIFY(!failed);
+    }
+
+    void applicationExtensionsComposeAndContributeToolbarButtons() {
+        using namespace jietuba::plugins;
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString root = dir.filePath("plugins");
+        QFile fixture(QCoreApplication::applicationDirPath() + "/jietuba_preview_plugin_fixture.exe");
+        QVERIFY(fixture.open(QIODevice::ReadOnly));
+        const auto binary = fixture.readAll();
+        const auto package = [&](const QString &id, const QByteArray &manifest) {
+            const QString path = dir.filePath(id + ".jtbplugin");
+            QZipWriter zip(path);
+            zip.addFile("plugin.json", manifest);
+            zip.addFile("extension.exe", binary);
+            zip.close();
+            return path;
+        };
+        const QByteArray a = R"({"id":"a","api_version":2,"type":"extension","command":"extension.exe","contributes":{"commands":["append","fail"],"hooks":[{"event":"screenshot.before_export","priority":10}],"clipboard":{"action":{"command":"append","content_types":["text"]}},"toolbar":[{"id":"test","location":"screenshot","name":"Example action","pipeline":[{"plugin":"a","command":"append"},{"plugin":"b","command":"append"}]}]}})";
+        const QByteArray b = R"({"id":"b","api_version":2,"type":"extension","command":"extension.exe","contributes":{"commands":["append"],"hooks":[{"event":"screenshot.before_export","priority":20}]}})";
+        QVERIFY(install_plugin_package(package("a", a), root).ok);
+        QVERIFY(install_plugin_package(package("b", b), root).ok);
+        const auto buttons = toolbar_contributions("screenshot", root);
+        QCOMPARE(buttons.size(), 1);
+        QCOMPARE(buttons.first().pipeline.size(), 2);
+        QCOMPARE(action_plugins(make_item(1, "text", "sample"), root).size(), 1);
+        jietuba::Toolbar toolbar;
+        toolbar.add_plugin_buttons(buttons);
+        const QString key = "plugin.a.test";
+        QVERIFY(toolbar.layout_profile.order.contains(key));
+        QVERIFY(toolbar.layout_profile.default_more.contains(key));
+        auto *button = toolbar.findChild<QPushButton *>(key);
+        QVERIFY(button);
+        QCOMPARE(button->toolTip(), QString("Example action"));
+        QSignalSpy clicked(&toolbar, &jietuba::Toolbar::plugin_clicked);
+        button->click();
+        QCOMPARE(clicked.size(), 1);
+        const QJsonObject initial{{"kind", "text"}, {"data", "start"}};
+        const auto hooked = dispatch_hooks("screenshot.before_export", initial, {}, root);
+        QVERIFY2(hooked.ok, qPrintable(hooked.error));
+        QCOMPARE(hooked.payload.value("data").toString(), QString("start|b|a"));
+        const auto chained = run_extension_pipeline(buttons.first().pipeline, hooked.payload, {}, root);
+        QVERIFY2(chained.ok, qPrintable(chained.error));
+        QCOMPARE(chained.payload.value("data").toString(), QString("start|b|a|a|b"));
+        QVERIFY(!run_extension_pipeline({{"a", "fail"}}, initial, {}, root).ok);
+        QVERIFY(!run_extension_pipeline({{"a", "unknown"}}, initial, {}, root).ok);
+        QVERIFY(set_plugin_enabled("b", false, root));
+        QCOMPARE(dispatch_hooks("screenshot.before_export", initial, {}, root).payload.value("data").toString(), QString("start|a"));
+        QVERIFY(!run_extension_pipeline(buttons.first().pipeline, initial, {}, root).ok);
+        QVERIFY(set_plugin_enabled("b", true, root));
+        QList<QString> callbacks;
+        QObject receiver;
+        auto *session = new ExtensionSession(&receiver, root);
+        session->hook("screenshot.before_export", initial, {}, &receiver, [&](ExtensionResult result) { if (result.ok) callbacks.append("hook"); });
+        session->pipeline(buttons.first().pipeline, initial, {}, &receiver, [&](ExtensionResult result) { if (result.ok) callbacks.append("pipeline"); });
+        session->finish();
+        QTRY_COMPARE_WITH_TIMEOUT(callbacks, QList<QString>({"hook", "pipeline"}), 15000);
+        const auto invalid = R"({"id":"x","api_version":2,"type":"extension","command":"extension.exe","contributes":{"toolbar":[{"id":"bad","location":"screenshot","name":"bad","pipeline":[{"plugin":"../x","command":"append"}]}]}})";
+        QVERIFY(!install_plugin_package(package("invalid", invalid), root).ok);
+    }
+
+    void realScreenshotExtensionsPassImageIntoTextPipeline() {
+        using namespace jietuba::plugins;
+        const QString packages = qEnvironmentVariable("JIETUBA_TEST_EXTENSION_DIR");
+        if (packages.isEmpty()) QSKIP("No screenshot extension packages supplied");
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        QVERIFY(install_plugin_package(QDir(packages).filePath("screenshot-image-info-0.4.0.jtbplugin"), root.path()).ok);
+        QVERIFY(install_plugin_package(QDir(packages).filePath("screenshot-dimensions-0.4.0.jtbplugin"), root.path()).ok);
+        const auto buttons = toolbar_contributions("screenshot", root.path());
+        QCOMPARE(buttons.size(), 1);
+        QImage image(48, 32, QImage::Format_ARGB32);
+        image.fill(Qt::blue);
+        const auto output = run_extension_pipeline(buttons.first().pipeline, image_payload(image), {}, root.path());
+        QVERIFY2(output.ok, qPrintable(output.error));
+        QCOMPARE(output.payload.value("kind").toString(), QString("text"));
+        QCOMPARE(output.payload.value("data").toString(), QString::fromUtf8("48 × 32 px"));
+        const QString script = qEnvironmentVariable("JIETUBA_TEST_SCRIPT_PACKAGE");
+        if (!script.isEmpty()) {
+            QVERIFY(install_plugin_package(script, root.path()).ok);
+            const auto chained = run_extension_pipeline({{"screenshot-image-info", "dimensions"}, {"script-transform", "transform"}}, image_payload(image), {}, root.path());
+            QVERIFY2(chained.ok, qPrintable(chained.error));
+            QCOMPARE(chained.payload.value("data").toString(), QString("48X32"));
+        }
+        const QString preview_package = qEnvironmentVariable("JIETUBA_TEST_PLUGIN_PACKAGE");
+        if (!preview_package.isEmpty()) {
+            QVERIFY(install_plugin_package(preview_package, root.path()).ok);
+            const QJsonObject item{{"content_type", "text"}, {"content", "{\"answer\":42}"}};
+            const auto preview = run_extension_pipeline({{"json-preview", "render"}}, {{"kind", "clipboard"}, {"data", item}}, {}, root.path());
+            QVERIFY2(preview.ok, qPrintable(preview.error));
+            QCOMPARE(preview.payload.value("kind").toString(), QString("preview"));
+            QVERIFY(preview.payload.value("data").toObject().value("content").toString().contains("\"answer\": 42"));
+        }
+    }
+
+    void realPluginPackageIntegration() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_PLUGIN_PACKAGE");
+        if (package.isEmpty()) QSKIP("No external plugin package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        const auto preview = resolve_preview(make_item(1, "text", "{\"answer\":42}"), ClipboardManager::instance(), dir.path());
+        QVERIFY(preview);
+        QCOMPARE(preview->provider_id, QString("json-preview"));
+        QVERIFY(preview->text.contains("\"answer\": 42"));
+    }
+
+    void realMarkdownPluginIntegration() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_MARKDOWN_PACKAGE");
+        if (package.isEmpty()) QSKIP("No Markdown plugin package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.filePath("plugins"));
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        const QString path = dir.filePath("note.md");
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write("# Heading\nBody"), qint64(14));
+        file.close();
+        const auto preview = resolve_preview(make_item(1, "file", file_payload({path})), ClipboardManager::instance(), dir.filePath("plugins"));
+        QVERIFY(preview);
+        QCOMPARE(preview->provider_id, QString("markdown-preview"));
+        QVERIFY(preview->kind == PreviewContent::Kind::Markdown);
+        QCOMPARE(preview->text, QString("# Heading\nBody"));
+    }
+
+    void realActionPluginRunsAsynchronously() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_ACTION_PACKAGE");
+        if (package.isEmpty()) QSKIP("No action plugin package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        auto item = make_item(1, "text", "{\"answer\":42}");
+        const auto actions = jietuba::plugins::action_plugins(item, dir.path());
+        QCOMPARE(actions.size(), 1);
+        QCOMPARE(actions.first().id, QString("json-pretty"));
+        QObject context;
+        bool finished = false;
+        std::optional<QString> output;
+        QVERIFY(jietuba::plugins::run_action("json-pretty", item, ClipboardManager::instance(), &context,
+                                            [&](std::optional<QString> value) { output = value; finished = true; }, dir.path()));
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 7000);
+        QVERIFY(output && output->contains("\"answer\": 42"));
+        item.content = "not json";
+        finished = false;
+        output.reset();
+        QVERIFY(jietuba::plugins::run_action("json-pretty", item, ClipboardManager::instance(), &context,
+                                            [&](std::optional<QString> value) { output = value; finished = true; }, dir.path()));
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 7000);
+        QVERIFY(!output);
+        QVERIFY(jietuba::plugins::set_plugin_enabled("json-pretty", false, dir.path()));
+        QVERIFY(jietuba::plugins::action_plugins(item, dir.path()).isEmpty());
+    }
+
+    void realCaptureFilterRunsBeforeStorageFromWorkerThread() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_FILTER_PACKAGE");
+        if (package.isEmpty()) QSKIP("No capture filter package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        const QByteArray normal = R"({"content_type":"text","content":"ordinary note"})";
+        const QByteArray secret = R"({"content_type":"text","content":"-----BEGIN PRIVATE KEY-----"})";
+        bool normal_allowed = false, secret_allowed = true, failed = true;
+        std::thread watcher([&] {
+            normal_allowed = jietuba::plugins::allow_capture(normal, dir.path(), &failed);
+            secret_allowed = jietuba::plugins::allow_capture(secret, dir.path(), &failed);
+        });
+        watcher.join();
+        QVERIFY(normal_allowed);
+        QVERIFY(!secret_allowed);
+        QVERIFY(!failed);
+        const QByteArray large = QJsonDocument(QJsonObject{{"content_type", "text"},
+                                                           {"content", QString(1024 * 1024, u'x')}}).toJson(QJsonDocument::Compact);
+        QVERIFY(jietuba::plugins::allow_capture(large, dir.path(), &failed));
+        QVERIFY(!failed);
+    }
+
+    void scriptActionUsesPluginSettingsAndRejectsInvalidScripts() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_SCRIPT_PACKAGE");
+        if (package.isEmpty()) QSKIP("No script plugin package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        QVERIFY(jietuba::plugins::save_plugin_config("script-transform", QJsonObject{{"script", "let text = content; text.trim(); source_app + ':' + text.to_upper()"}}, dir.path()));
+        auto item = make_item(1, "text", "  hello  ");
+        item.source_app = "demo.exe";
+        QObject context;
+        bool finished = false;
+        std::optional<QString> output;
+        QVERIFY(jietuba::plugins::run_action("script-transform", item, ClipboardManager::instance(), &context,
+                                            [&](std::optional<QString> value) { output = value; finished = true; }, dir.path()));
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 7000);
+        QCOMPARE(output, std::optional<QString>("demo.exe:HELLO"));
+        QVERIFY(jietuba::plugins::save_plugin_config("script-transform", QJsonObject{{"script", "loop {}"}}, dir.path()));
+        finished = false;
+        output.reset();
+        QVERIFY(jietuba::plugins::run_action("script-transform", item, ClipboardManager::instance(), &context,
+                                            [&](std::optional<QString> value) { output = value; finished = true; }, dir.path()));
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 7000);
+        QVERIFY(!output);
+    }
+
+    void sourceExclusionFilterUsesPersistentSettings() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_SOURCE_PACKAGE");
+        if (package.isEmpty()) QSKIP("No source filter package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        bool configured = false;
+        QWidget owner;
+        QTimer::singleShot(0, [&] {
+            auto *manager_dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            auto *list = manager_dialog ? manager_dialog->findChild<QListWidget *>("pluginList") : nullptr;
+            auto *button = manager_dialog ? manager_dialog->findChild<QPushButton *>("pluginSettings") : nullptr;
+            if (list && button && list->count() == 1) {
+                list->setCurrentRow(0);
+                QTimer::singleShot(0, [&] {
+                    auto *settings = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+                    auto *editor = settings ? settings->findChild<QPlainTextEdit *>("pluginSetting_ignored_apps") : nullptr;
+                    auto *buttons = settings ? settings->findChild<QDialogButtonBox *>() : nullptr;
+                    if (editor && buttons) {
+                        editor->setPlainText("secret.exe\nother.exe");
+                        configured = true;
+                        buttons->button(QDialogButtonBox::Save)->click();
+                    }
+                });
+                button->click();
+            }
+            if (manager_dialog) manager_dialog->accept();
+        });
+        jietuba::plugins::show_plugin_manager(&owner, dir.path());
+        QVERIFY(configured);
+        bool failed = false;
+        const QByteArray blocked = R"({"content_type":"text","source_app":"Secret.EXE","content":"sample"})";
+        const QByteArray allowed = R"({"content_type":"text","source_app":"normal.exe","content":"sample"})";
+        QVERIFY(!jietuba::plugins::allow_capture(blocked, dir.path(), &failed));
+        QVERIFY(!failed);
+        QVERIFY(jietuba::plugins::allow_capture(allowed, dir.path(), &failed));
+        QVERIFY(!failed);
+        QVERIFY(jietuba::plugins::install_plugin_package(package, dir.path()).ok);
+        QVERIFY(!jietuba::plugins::allow_capture(blocked, dir.path(), &failed));
+        QFile damaged(jietuba::plugins::plugin_config_path("source-exclusions", dir.path()));
+        QVERIFY(damaged.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        damaged.write("{");
+        damaged.close();
+        QVERIFY(!jietuba::plugins::allow_capture(allowed, dir.path(), &failed));
+        QVERIFY(failed);
+    }
+
+    void encryptedBackupPluginRoundTrip() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_BACKUP_PACKAGE");
+        const QString python = qEnvironmentVariable("JIETUBA_TEST_PYTHON");
+        if (package.isEmpty() || python.isEmpty()) QSKIP("No backup integration fixture supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString plugins = dir.filePath("plugins");
+        const auto installed = jietuba::plugins::install_plugin_package(package, plugins);
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        QVERIFY(jietuba::plugins::has_backup_plugin(plugins));
+        const QString db = dir.filePath("source.db"), images = dir.filePath("images"), encrypted = dir.filePath("backup.jtbbackup"), stage = dir.filePath("export-stage");
+        QVERIFY(QDir().mkpath(images));
+        QVERIFY(QDir().mkpath(stage));
+        QFile image(QDir(images).filePath("abcd.png"));
+        QVERIFY(image.open(QIODevice::WriteOnly));
+        QCOMPARE(image.write("image data"), qint64(10));
+        image.close();
+        const QString create = "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.executescript(\"PRAGMA journal_mode=WAL; CREATE TABLE clipboard(id INTEGER PRIMARY KEY,content TEXT,image_id TEXT); CREATE TABLE clipboard_formats(event_id INTEGER,format_name TEXT,data BLOB); CREATE TABLE groups(id INTEGER); INSERT INTO clipboard VALUES(1,'sample value','abcd');\"); c.commit()";
+        QProcess python_process;
+        python_process.start(python, {"-c", create, db});
+        QVERIFY(python_process.waitForFinished(15000));
+        QCOMPARE(python_process.exitCode(), 0);
+        QWidget owner;
+        QJsonObject request{{"operation","export"},{"db_path",db},{"images_dir",images},
+                            {"destination",encrypted},{"staging",stage},{"password","fixture password"},{"overwrite",false}};
+        QVERIFY(jietuba::plugins::run_backup_plugin(request, &owner, plugins));
+        QVERIFY(QDir(stage).entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot).isEmpty());
+        QFile cipher(encrypted);
+        QVERIFY(cipher.open(QIODevice::ReadOnly));
+        QVERIFY(!cipher.readAll().contains("sample value"));
+        const QString wrong = dir.filePath("wrong"), restored = dir.filePath("restored");
+        QVERIFY(QDir().mkpath(wrong));
+        QVERIFY(QDir().mkpath(restored));
+        request = {{"operation","restore"},{"source",encrypted},{"staging",wrong},{"password","wrong"}};
+        QVERIFY(!jietuba::plugins::run_backup_plugin(request, &owner, plugins));
+        QVERIFY(QDir(wrong).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty());
+        request.insert("staging", restored);
+        request.insert("password", "fixture password");
+        QVERIFY(jietuba::plugins::run_backup_plugin(request, &owner, plugins));
+        QFile restored_image(QDir(restored).filePath("images/abcd.png"));
+        QVERIFY(restored_image.open(QIODevice::ReadOnly));
+        QCOMPARE(restored_image.readAll(), QByteArray("image data"));
+        const QString check = "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); assert c.execute('SELECT content FROM clipboard').fetchone()[0]=='sample value'";
+        python_process.start(python, {"-c", check, QDir(restored).filePath("clipboard.db")});
+        QVERIFY(python_process.waitForFinished(15000));
+        QCOMPARE(python_process.exitCode(), 0);
+        QVERIFY(jietuba::plugins::set_plugin_enabled("clipboard-backup", false, plugins));
+        QVERIFY(!jietuba::plugins::has_backup_plugin(plugins));
+    }
+
+    void metadataPluginEditsAndSearchesNotesAndTags() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_METADATA_PACKAGE");
+        if (package.isEmpty()) QSKIP("No metadata plugin package supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        auto &manager = ClipboardManager::instance();
+        const auto id = manager.add_item("clipboard text");
+        QVERIFY(id);
+        const auto item = manager.get_item(*id);
+        QVERIFY(item);
+        const auto providers = jietuba::plugins::metadata_plugins(*item, dir.path());
+        QCOMPARE(providers.size(), 1);
+        QCOMPARE(providers.first().id, QString("notes-tags"));
+        bool edited = false;
+        QWidget owner;
+        QTimer::singleShot(0, [&] {
+            QWidget *dialog = QApplication::activeModalWidget();
+            if (!dialog) for (auto *surface : QApplication::topLevelWidgets())
+                if (surface->objectName() == "pluginMetadataDialog") { dialog = surface; break; }
+            auto *note = dialog ? dialog->findChild<QPlainTextEdit *>("metadata_note") : nullptr;
+            auto *tags = dialog ? dialog->findChild<QLineEdit *>("metadata_tags") : nullptr;
+            auto *buttons = dialog ? dialog->findChild<QDialogButtonBox *>() : nullptr;
+            if (note && tags && buttons) {
+                note->setPlainText("project alpha");
+                tags->setText("work, urgent");
+                edited = true;
+                buttons->button(QDialogButtonBox::Save)->click();
+            } else if (auto *window = qobject_cast<QDialog *>(dialog)) window->reject();
+        });
+        QVERIFY(jietuba::plugins::edit_item_metadata("notes-tags", *item, manager, &owner, dir.path()));
+        QVERIFY(edited);
+        QCOMPARE(manager.plugin_metadata(*id, "notes-tags").value("note").toString(), QString("project alpha"));
+        QVERIFY(manager.get_item(*id)->has_metadata);
+        QCOMPARE(manager.get_history(0, 50, QString("urgent")).size(), 1);
+        const auto group = manager.create_group("Test");
+        QVERIFY(group && manager.move_to_group(*id, *group));
+        ClipboardController controller(manager);
+        controller.switch_to_group(*group);
+        controller.set_search_text("alpha");
+        QCOMPARE(controller.current_items.size(), 1);
+        QVERIFY(manager.set_plugin_metadata(*id, "notes-tags", {}));
+        QVERIFY(!manager.get_item(*id)->has_metadata);
+    }
+
+    void realRtfPluginUsesStoredClipboardFormat() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_RTF_PACKAGE");
+        const QString python = qEnvironmentVariable("JIETUBA_TEST_PYTHON");
+        if (package.isEmpty() || python.isEmpty()) QSKIP("No RTF integration fixture supplied");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const auto installed = jietuba::plugins::install_plugin_package(package, dir.path());
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        const QString json_package = qEnvironmentVariable("JIETUBA_TEST_PLUGIN_PACKAGE");
+        if (!json_package.isEmpty()) QVERIFY(jietuba::plugins::install_plugin_package(json_package, dir.path()).ok);
+        auto &manager = ClipboardManager::instance();
+        // JSON also matches this text, but the higher-priority RTF provider wins.
+        const auto id = manager.add_item("{\"answer\":42}");
+        QVERIFY(id);
+        const QByteArray rtf = R"({\rtf1\ansi normal {\b bold}})";
+        const QString script = "import sqlite3,sys,base64; c=sqlite3.connect(sys.argv[1]); "
+                               "c.execute('INSERT INTO clipboard_formats(event_id,format_id,format_name,data,compressed) VALUES(?,?,?,?,0)', "
+                               "(int(sys.argv[2]),50000,'Rich Text Format',base64.b64decode(sys.argv[3]))); c.commit()";
+        QProcess process;
+        process.start(python, {"-c", script, manager.get_db_path().value_or(QString()), QString::number(*id), QString::fromLatin1(rtf.toBase64())});
+        QVERIFY(process.waitForFinished(15000));
+        QCOMPARE(process.exitCode(), 0);
+        QCOMPARE(manager.get_format(*id, "Rich Text Format"), std::optional<QByteArray>(rtf));
+        QVERIFY(manager.format_names(*id).contains("Rich Text Format"));
+        const auto item = manager.get_item(*id);
+        QVERIFY(item);
+        const auto preview = resolve_preview(*item, manager, dir.path());
+        QVERIFY(preview);
+        QCOMPARE(preview->provider_id, QString("rtf-preview"));
+        QVERIFY(preview->kind == PreviewContent::Kind::Html);
+        QVERIFY(preview->text.contains("font-weight:bold"));
+        QVERIFY(preview->text.contains("bold"));
+        const QString inspector_package = qEnvironmentVariable("JIETUBA_TEST_INSPECTOR_PACKAGE");
+        if (!inspector_package.isEmpty()) {
+            QVERIFY(jietuba::plugins::install_plugin_package(inspector_package, dir.path()).ok);
+            const auto inspected = resolve_preview(*item, manager, dir.path(), "formats");
+            QVERIFY(inspected);
+            QCOMPARE(inspected->provider_id, QString("format-inspector"));
+            QVERIFY(inspected->text.contains("Rich Text Format"));
+            QVERIFY(inspected->text.contains("7b 5c 72 74 66"));
+            const auto selected = resolve_preview(*item, manager, dir.path(), "formats", "Rich Text Format");
+            QVERIFY(selected && selected->text.contains("7b 5c 72 74 66"));
+            const QString insert_many = "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); "
+                "c.executemany('INSERT INTO clipboard_formats(event_id,format_id,format_name,data,compressed) VALUES(?,?,?,?,0)', "
+                "[(int(sys.argv[2]),51000+i,'Example%02d'%i,b'xyz') for i in range(12)]); c.commit()";
+            process.start(python, {"-c", insert_many, manager.get_db_path().value_or(QString()), QString::number(*id)});
+            QVERIFY(process.waitForFinished(15000));
+            QCOMPARE(process.exitCode(), 0);
+            const auto later = resolve_preview(*item, manager, dir.path(), "formats", "Example11");
+            QVERIFY(later && later->text.contains("78 79 7a"));
+        }
+        QWidget parent;
+        auto *dialog = show_detail_preview(*item, manager, &parent, THEME_LIGHT(), "formats");
+        auto *selector = dialog->findChild<QComboBox *>("previewFormatSelector");
+        auto *editor = dialog->findChild<TextEdit *>("previewContent");
+        QVERIFY(selector && editor);
+        const int index = selector->findData("Rich Text Format");
+        QVERIFY(index > 0);
+        selector->setCurrentIndex(index);
+        QVERIFY(editor->toPlainText().contains("7b 5c 72 74 66"));
+        dialog->close();
+        const auto custom_id = manager.add_item(R"({"formats":["Rich Text Format"],"digest":"sample"})", "custom");
+        QVERIFY(custom_id);
+        process.start(python, {"-c", script, manager.get_db_path().value_or(QString()), QString::number(*custom_id), QString::fromLatin1(rtf.toBase64())});
+        QVERIFY(process.waitForFinished(15000));
+        QCOMPARE(process.exitCode(), 0);
+        const auto custom = manager.get_item(*custom_id);
+        QVERIFY(custom);
+        const auto custom_preview = resolve_preview(*custom, manager, dir.path());
+        QVERIFY(custom_preview && custom_preview->provider_id == "rtf-preview" && custom_preview->text.contains("bold"));
+    }
+
+    void detailPreviewShowsFullTextRichTextAndFiles() {
+        QWidget parent;
+        const QString long_text = QString("long text\n").repeated(800);
+        auto *dialog = show_detail_preview(make_item(1, "text", long_text), ClipboardManager::instance(), &parent, THEME_LIGHT());
+        auto *editor = dialog->findChild<TextEdit *>("previewContent");
+        QVERIFY(editor);
+        QCOMPARE(editor->toPlainText(), long_text);
+        QVERIFY(editor->isReadOnly());
+        dialog->close();
+
+        auto rich = make_item(2, "text", "bold");
+        rich.html_content = "<b>bold</b>";
+        dialog = show_detail_preview(rich, ClipboardManager::instance(), &parent, THEME_LIGHT());
+        editor = dialog->findChild<TextEdit *>("previewContent");
+        QCOMPARE(editor->toPlainText(), QString("bold"));
+        QTextCursor cursor(editor->document());
+        cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+        QVERIFY(cursor.charFormat().fontWeight() >= QFont::Bold);
+        QVERIFY(!editor->document()->resource(QTextDocument::ImageResource, QUrl("file:///C:/secret.png")).isValid());
+        dialog->close();
+
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString path = dir.filePath("note.txt");
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write("file contents"), qint64(13));
+        file.close();
+        dialog = show_detail_preview(make_item(3, "file", file_payload({path})), ClipboardManager::instance(), &parent, THEME_LIGHT());
+        editor = dialog->findChild<TextEdit *>("previewContent");
+        QCOMPARE(editor->toPlainText(), QString("file contents"));
+        dialog->close();
+
+        auto image = make_item(4, "image", "image");
+        image.thumbnail = png_data_url(QSize(30, 20));
+        dialog = show_detail_preview(image, ClipboardManager::instance(), &parent, THEME_LIGHT());
+        auto *scroll = dialog->findChild<QScrollArea *>("previewImageScroll");
+        QVERIFY(scroll);
+        QCOMPARE(qobject_cast<QLabel *>(scroll->widget())->pixmap().size(), QSize(30, 20));
+        dialog->close();
     }
 
     void colorPreviewShowsALargeSwatchAndClearsItForOtherItems() {

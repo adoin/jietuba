@@ -31,6 +31,17 @@ pub fn accepts(group_type: i64, content_type: &str, sub_kind: &str) -> bool {
 /// 来源规则里代表本程序自己：几种发布包和开发构建的 exe 名都以它开头
 pub const OWN_APP: &str = "jietuba";
 
+/// The saved sentinel stays stable; newly branded executable names also count as this app.
+pub fn own_app_prefix() -> &'static str {
+    static PREFIX: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    PREFIX.get_or_init(|| {
+        let brand: serde_json::Value = serde_json::from_str(include_str!("../../../branding.json")).expect("invalid branding.json");
+        let name = brand["name"].as_str().expect("branding.name missing");
+        assert!(!name.is_empty() && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+        name.to_owned()
+    })
+}
+
 /// 筛选条件：内容类型和来源应用，两项同时给时都要满足。也用于面板上的类型筛选
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterRule {
@@ -42,7 +53,7 @@ pub struct FilterRule {
     pub app: Option<String>,
 }
 
-const CONTENT_KINDS: [&str; 3] = ["text", "image", "file"];
+const CONTENT_KINDS: [&str; 4] = ["text", "image", "file", "custom"];
 const TEXT_SUB_KINDS: [&str; 3] = [text_kind::URL, text_kind::COLOR, text_kind::PATH];
 
 impl FilterRule {
@@ -95,7 +106,8 @@ impl FilterRule {
         if let Some(app) = &self.app {
             if app.eq_ignore_ascii_case(OWN_APP) {
                 // LIKE 对 ASCII 不分大小写；exe 名里的 _ 是通配符，这里无妨
-                conditions.push("source_app LIKE 'jietuba%'");
+                conditions.push("(source_app LIKE 'jietuba%' OR source_app LIKE ?)");
+                params.push(Value::from(format!("{}%", own_app_prefix())));
             } else {
                 conditions.push("source_app = ? COLLATE NOCASE");
                 params.push(Value::from(app.trim().to_string()));
@@ -147,7 +159,7 @@ mod tests {
         let (conditions, _) = FilterRule::kind("color").sql_conditions();
         assert_eq!(conditions, vec!["content_type = 'text' AND sub_kind = ?"]);
         let own = FilterRule { kind: None, app: Some("JIETUBA".to_string()) };
-        assert_eq!(own.sql_conditions(), (vec!["source_app LIKE 'jietuba%'"], vec![]));
+        assert_eq!(own.sql_conditions(), (vec!["(source_app LIKE 'jietuba%' OR source_app LIKE ?)"], vec![Value::from(format!("{}%", own_app_prefix()))]));
         assert_eq!(FilterRule::default().sql_conditions(), (vec![], vec![]));
     }
 }

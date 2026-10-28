@@ -17,7 +17,7 @@ pub fn remove(root: &Path, id: &str) {
         }
         files.sort_by_key(|file| {
             file.file_name()
-                .is_none_or(|name| name != "jietuba_updater.exe")
+                .is_none_or(|name| name != concat!(env!("JTM_NAME"), "_updater.exe"))
         });
         for file in files {
             fs::remove_file(file)?;

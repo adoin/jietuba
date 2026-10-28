@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QStringList>
+#include "core/brand_config.h"
 #include <QtGlobal>
 #include <Qt>
 #include <functional>
@@ -24,7 +25,7 @@ void set_dpi_awareness();
 double get_system_dpi(double fallback = 96.0);
 
 // Taskbar grouping; must run before QApplication is created.
-void set_app_user_model_id(const QString &app_id = "jietuba.app");
+void set_app_user_model_id(const QString &app_id = QStringLiteral(JTM_NAME ".app"));
 
 // Processes. PIDs are recycled, so (creation time, image name) identifies a process.
 constexpr unsigned PROCESS_TERMINATE = 0x0001;

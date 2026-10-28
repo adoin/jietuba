@@ -157,16 +157,13 @@ std::pair<QList<ClipboardItem>, int> ClipboardController::fetch_items_page(int l
         const auto items = manager.get_history(offset, limit, search_text_, filter, start_ts, end_ts);
         return {items, static_cast<int>(items.size())};
     }
-    auto items = manager.get_by_group(current_group_id, offset, limit);
-    const int raw_count = static_cast<int>(items.size());
-    if (search_text_) {
-        QList<ClipboardItem> matched;
-        for (const auto &item : items)
-            if (item.content.contains(*search_text_, Qt::CaseInsensitive) || (item.title && item.title->contains(*search_text_, Qt::CaseInsensitive)))
-                matched.append(item);
-        items = matched;
+    std::optional<qint64> start, end;
+    if (time_range_) {
+        start = time_range_->first.toSecsSinceEpoch();
+        end = time_range_->second.toSecsSinceEpoch();
     }
-    return {items, raw_count};
+    auto items = manager.get_group_filtered(*current_group_id, offset, limit, search_text_, content_type_, start, end);
+    return {items, static_cast<int>(items.size())};
 }
 
 void ClipboardController::check_scroll_load(int scroll_value, int scroll_max) {
@@ -303,7 +300,9 @@ void ClipboardController::send_paste_keystroke(bool explicit_paste) {
     if (!explicit_paste && !auto_paste_enabled) return;
     const Hwnd target_hwnd = foreground_tracker_.target_hwnd();
     // Delayed so the clipboard window is closed or hidden and cannot take the focus back.
-    QTimer::singleShot(50, [target_hwnd] { paste_to_target(target_hwnd); });
+    // The controller owns the request: if its window is destroyed before the
+    // delay expires, do not send a stale paste to a different application.
+    QTimer::singleShot(50, this, [target_hwnd] { paste_to_target(target_hwnd); });
 }
 
 bool ClipboardController::paste_item(qint64 item_id, const CloseCallback &on_close_callback, bool explicit_paste) {

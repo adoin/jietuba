@@ -21,6 +21,17 @@ const MANIFEST: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=../../app.ico");
+    println!("cargo:rerun-if-changed=../../branding.json");
+    let branding: serde_json::Value = serde_json::from_str(&fs::read_to_string("../../branding.json").expect("branding.json missing")).expect("invalid branding.json");
+    let name = branding["name"].as_str().expect("branding.name missing");
+    let display = branding["display_name"].as_str().expect("branding.display_name missing");
+    let repository = branding["repository"].as_str().expect("branding.repository missing");
+    assert!(name.starts_with(|c: char| c.is_ascii_lowercase()) && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+    assert!(display.starts_with(|c: char| c.is_ascii_alphabetic()) && display.chars().all(|c| c.is_ascii_alphanumeric() || " _-".contains(c)));
+    assert!(repository.split('/').count() == 2 && repository.chars().all(|c| c.is_ascii_alphanumeric() || "._-/".contains(c)));
+    println!("cargo:rustc-env=JTM_NAME={name}");
+    println!("cargo:rustc-env=JTM_DISPLAY_NAME={display}");
+    println!("cargo:rustc-env=JTM_REPOSITORY={repository}");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
@@ -50,12 +61,12 @@ FILESUBTYPE 0
   {{
     BLOCK "040904B0"
     {{
-      VALUE "ProductName", "jietuba"
+      VALUE "ProductName", "{display}"
       VALUE "ProductVersion", "{version}"
       VALUE "FileVersion", "{version}"
-      VALUE "FileDescription", "jietuba updater"
-      VALUE "InternalName", "jietuba_updater"
-      VALUE "OriginalFilename", "jietuba_updater.exe"
+      VALUE "FileDescription", "{display} updater"
+      VALUE "InternalName", "{name}_updater"
+      VALUE "OriginalFilename", "{name}_updater.exe"
       VALUE "LegalCopyright", "Copyright (c) 2025 JYAARU"
     }}
   }}

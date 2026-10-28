@@ -1,4 +1,9 @@
 #include "clipboard/ui/windows/clipboard_window.h"
+#include "plugins/plugin_package.h"
+#include "plugins/plugin_manager_dialog.h"
+#include "plugins/plugin_actions.h"
+#include "plugins/plugin_backup.h"
+#include "plugins/plugin_metadata.h"
 #include "clipboard/ui/dialogs/manage_dialog.h"
 #include "clipboard/ui/image_item_actions.h"
 #include "clipboard/ui/menus/action_menu.h"
@@ -18,6 +23,7 @@
 #include "core/ui_theme.h"
 #include "settings/tool_settings.h"
 #include "ui/dialogs.h"
+#include "ui/toast.h"
 #include "ui/fluent_lite/inputs.h"
 #include <QApplication>
 #include <QCalendarWidget>
@@ -38,6 +44,7 @@
 #include <QProcess>
 #include <QSaveFile>
 #include <QScreen>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QStandardPaths>
 #include <QStyle>
@@ -89,6 +96,11 @@ bool ClipboardShortcutHandler::handle_key(QInputEvent *event) {
     // Configured keys come before the fixed Enter and direct pick letters below.
     if (match_inapp_binding(event, QUICK_EDIT_SHORTCUT, bindings_) && w->edit_selected()) return true;
 
+    if (key == Qt::Key_F4 && modifiers == Qt::NoModifier) {
+        if (const auto id = w->selection_manager->cursor_id()) w->preview_item(*id);
+        return true;
+    }
+
     if (key == Qt::Key_Escape) {
         // The cursor only points, so there is nothing else to undo before closing.
         if (!w->selection_manager->clear_marks()) w->close();
@@ -125,13 +137,13 @@ bool ClipboardShortcutHandler::handle_key(QInputEvent *event) {
 namespace {
 // Entries of the type filter menu: the kind it selects (see FilterRule::kind), empty for every type.
 const QStringList &type_filter_kinds() {
-    static const QStringList kinds = {QString(), "text", SUB_KIND_URL, SUB_KIND_COLOR, SUB_KIND_PATH, "image", "file"};
+    static const QStringList kinds = {QString(), "text", SUB_KIND_URL, SUB_KIND_COLOR, SUB_KIND_PATH, "image", "file", "custom"};
     return kinds;
 }
 
 QStringList type_filter_label_texts() {
     return {ClipboardWindow::tr_text("All"),  ClipboardWindow::tr_text("Text"),  ClipboardWindow::tr_text("Link"), ClipboardWindow::tr_text("Color"),
-            ClipboardWindow::tr_text("Path"), ClipboardWindow::tr_text("Image"), ClipboardWindow::tr_text("File")};
+            ClipboardWindow::tr_text("Path"), ClipboardWindow::tr_text("Image"), ClipboardWindow::tr_text("File"), ClipboardWindow::tr_text("Other")};
 }
 
 QString &geometry_file_for_test() {
@@ -281,10 +293,16 @@ void ClipboardWindow::apply_scale_metrics() {
     time_filter_layout_->setSpacing(scaled(4));
     bottom_layout_->setSpacing(scaled(8));
     const std::tuple<QWidget *, int, int> sizes[] = {
-        {start_date_edit, 108, 26}, {end_date_edit, 108, 26},         {apply_time_filter_btn, 36, 26}, {type_filter_btn, 80, 26},
+        {start_date_edit, 108, 26}, {end_date_edit, 108, 26},         {apply_time_filter_btn, 36, 26},
         {clear_time_filter_btn, 26, 26}, {time_filter_toggle_btn, 28, 28}, {clear_search_btn, 24, 24},  {menu_btn, 28, 28},
     };
     for (const auto &[widget, width, height] : sizes) widget->setFixedSize(scaled(width), scaled(height));
+    if (type_filter_bar) {
+        type_filter_bar->setMinimumHeight(scaled(30));
+        if (auto *scroll = findChild<QScrollArea *>("typeFilterScroll")) scroll->setFixedHeight(scaled(44));
+        type_filter_bar->layout()->setContentsMargins(scaled(6), scaled(4), scaled(6), scaled(4));
+        type_filter_bar->layout()->setSpacing(scaled(2));
+    }
 }
 
 void ClipboardWindow::on_theme_changed(const Theme &theme) {
@@ -346,14 +364,13 @@ void ClipboardWindow::retranslate_ui() {
     start_date_edit->setToolTip(tr_text("Start date"));
     end_date_edit->setToolTip(tr_text("End date"));
     apply_time_filter_btn->setToolTip(tr_text("Apply time filter"));
-    type_filter_btn->setToolTip(tr_text("Filter Type"));
     clear_time_filter_btn->setToolTip(tr_text("Close filters"));
     search_input->setPlaceholderText(QString::fromUtf8("🔍 ") + tr_text("Search"));
     clear_search_btn->setToolTip(tr_text("Clear search"));
     selection_bar->retranslate();
 
     type_filter_labels = type_filter_label_texts();
-    for (int index = 0; index < type_filter_actions.size(); ++index) type_filter_actions[index]->setText(type_filter_labels[index]);
+    for (int index = 0; index < type_filter_tabs.size(); ++index) type_filter_tabs[index]->setText(type_filter_labels[index]);
     update_type_filter_button(type_filter_index);
     if (group_bar) group_bar->refresh_buttons();
 }
@@ -364,6 +381,7 @@ void ClipboardWindow::apply_opacity() {
     if (list_widget) list_widget->setStyleSheet(generator.generate_list_widget_style(window_opacity));
     if (bottom_bar) bottom_bar->setStyleSheet(generator.generate_search_bar_style(window_opacity));
     if (time_filter_bar) time_filter_bar->setStyleSheet(generator.generate_time_filter_bar_style(window_opacity));
+    if (type_filter_bar) type_filter_bar->setStyleSheet(generator.generate_search_bar_style(window_opacity).replace("border-top:", "border-bottom:"));
     if (group_bar && group_bar->bar_widget) {
         const QString border = group_bar_position == "left" ? "border-right:" : group_bar_position == "top" ? "border-bottom:" : "border-left:";
         group_bar->bar_widget->setStyleSheet(generator.generate_search_bar_style(window_opacity).replace("border-top:", border));
@@ -478,6 +496,33 @@ void ClipboardWindow::setup_ui() {
     QScrollBar *scrollbar = list_widget->verticalScrollBar();
     connect(scrollbar, &QScrollBar::valueChanged, this, [this](int value) { on_scroll(value); });
     connect(scrollbar, &QScrollBar::rangeChanged, this, [this] { list_widget->viewport()->update(); });
+    type_filter_bar = new QWidget;
+    type_filter_bar->setObjectName("typeFilterBar");
+    auto *tabs_layout = new QHBoxLayout(type_filter_bar);
+    tabs_layout->setContentsMargins(scaled(6), scaled(4), scaled(6), scaled(4));
+    tabs_layout->setSpacing(scaled(2));
+    type_filter_labels = type_filter_label_texts();
+    for (int idx = 0; idx < type_filter_labels.size(); ++idx) {
+        auto *tab = new QToolButton;
+        tab->setObjectName(QString("typeFilterTab%1").arg(idx));
+        tab->setText(type_filter_labels[idx]);
+        tab->setCheckable(true);
+        tab->setCursor(Qt::PointingHandCursor);
+        tab->setFocusPolicy(Qt::StrongFocus);
+        tab->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        connect(tab, &QToolButton::clicked, this, [this, idx] { set_type_filter(idx); });
+        type_filter_tabs.append(tab);
+        tabs_layout->addWidget(tab);
+    }
+    auto *tabs_scroll = new QScrollArea;
+    tabs_scroll->setObjectName("typeFilterScroll");
+    tabs_scroll->setFrameShape(QFrame::NoFrame);
+    tabs_scroll->setWidgetResizable(true);
+    tabs_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    tabs_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tabs_scroll->setWidget(type_filter_bar);
+    tabs_scroll->setFixedHeight(scaled(44));
+    left_layout->addWidget(tabs_scroll);
     left_layout->addWidget(list_widget, 1);
 
     time_filter_bar = new QWidget;
@@ -512,25 +557,6 @@ void ClipboardWindow::setup_ui() {
     connect(apply_time_filter_btn, &QToolButton::clicked, this, [this] { apply_time_range_filter(); });
     time_filter_layout_->addWidget(apply_time_filter_btn);
     time_filter_layout_->addStretch(1);
-
-    type_filter_labels = type_filter_label_texts();
-    type_filter_index = 0;
-    type_filter_btn = new QToolButton;
-    type_filter_btn->setCursor(Qt::PointingHandCursor);
-    type_filter_btn->setToolTip(tr_text("Filter Type"));
-    type_filter_btn->setFocusPolicy(Qt::NoFocus);
-    type_filter_btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    connect(type_filter_btn, &QToolButton::clicked, this, [this] { show_type_filter_menu(); });
-    type_filter_menu = new QMenu(type_filter_btn);
-    for (int idx = 0; idx < type_filter_labels.size(); ++idx) {
-        QAction *action = type_filter_menu->addAction(type_filter_labels[idx]);
-        action->setCheckable(true);
-        action->setChecked(idx == type_filter_index);
-        connect(action, &QAction::triggered, this, [this, idx] { set_type_filter(idx); });
-        type_filter_actions.append(action);
-    }
-    update_type_filter_button(0);
-    time_filter_layout_->addWidget(type_filter_btn);
 
     clear_time_filter_btn = new QToolButton;
     clear_time_filter_btn->setText(QString::fromUtf8("×"));
@@ -593,9 +619,9 @@ void ClipboardWindow::setup_ui() {
     connect(menu_btn, &QPushButton::clicked, this, [this] { show_main_menu(); });
     bottom_layout_->addWidget(menu_btn);
 
-    apply_time_filter_styles();
     left_layout->addWidget(bottom_bar);
     content_layout->addWidget(left_widget, 1);
+    apply_time_filter_styles();
 
     group_bar = new GroupBar(controller, &manager, current_theme, group_bar_position, this);
     connect(group_bar, &GroupBar::close_requested, this, [this] { close(); });
@@ -654,6 +680,12 @@ void ClipboardWindow::show_main_menu() {
     options.on_set_display_lines = [this](int lines) { set_display_lines(lines); };
     options.on_set_theme = [](const QString &name) { get_theme_manager()->set_theme(name); };
     options.on_add_item = [this] { on_add_item_clicked(); };
+    options.on_install_plugin = [this] { plugins::install_plugin_interactively(this); };
+    options.on_manage_plugins = [this] { plugins::show_plugin_manager(this); };
+    if (plugins::has_backup_plugin()) {
+        options.on_backup_clipboard = [this] { plugins::backup_clipboard(this, manager); };
+        options.on_restore_clipboard = [this] { plugins::restore_clipboard(this, manager); };
+    }
     options.on_clear_history = [this] { on_clear_clicked(); };
     options.on_set_group_bar_position = [this](const QString &position) { set_group_bar_position(position); };
     options.open_position = config->get_clipboard_open_position();
@@ -702,8 +734,7 @@ void ClipboardWindow::clear_time_and_type_filters() {
     end_date_edit->setDate(today);
     start_date_edit->setProperty("hasError", false);
     end_date_edit->setProperty("hasError", false);
-    if (type_filter_btn) update_type_filter_button(0);
-    controller->clear_time_and_type_filters();
+    controller->set_time_range_text({});
 }
 
 void ClipboardWindow::set_window_opacity_percent(int percent) {
@@ -864,9 +895,22 @@ void ClipboardWindow::apply_time_filter_styles() {
         set_own_style(time_filter_separator,
                       QString("background: transparent; border: none; color: %1; font-size: %2px;").arg(current_theme.colors.text_secondary).arg(scaled(12)));
     if (apply_time_filter_btn) apply_time_filter_btn->setStyleSheet(generator.generate_time_filter_action_btn_style(true));
-    if (type_filter_btn) {
-        type_filter_btn->setStyleSheet(generator.generate_time_filter_type_btn_style());
-        type_filter_menu->setStyleSheet(generator.generate_menu_style());
+    if (!type_filter_tabs.isEmpty()) {
+        const auto &c = current_theme.colors;
+        const QString style = QString("QToolButton { background: transparent; border: none; border-radius: %1px; padding: 0 %2px; color: %3; font-size: %4px; }"
+                                      "QToolButton:hover { background: %5; } QToolButton:checked { background: %6; color: %7; }"
+                                      "QToolButton:disabled { color: %8; } QToolButton:checked:disabled { color: %7; }")
+                                  .arg(scaled(9)).arg(scaled(8)).arg(c.text_secondary).arg(scaled(12))
+                                  .arg(c.bg_hover, c.bg_selected, c.text_accent, c.text_disabled);
+        for (auto *tab : type_filter_tabs) tab->setStyleSheet(style);
+        if (auto *scroll = findChild<QScrollArea *>("typeFilterScroll")) {
+            scroll->setStyleSheet(QString("QScrollArea#typeFilterScroll { background: transparent; border: none; }"
+                                          "QScrollBar:horizontal { background: transparent; height: %1px; margin: 0; }"
+                                          "QScrollBar::handle:horizontal { background: %2; border-radius: %3px; min-width: %4px; }"
+                                          "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
+                                          "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }")
+                                      .arg(scaled(4)).arg(c.border_primary).arg(scaled(2)).arg(scaled(24)));
+        }
         refresh_type_filter_button();
     }
     if (clear_time_filter_btn) clear_time_filter_btn->setStyleSheet(generator.generate_time_filter_close_btn_style());
@@ -879,22 +923,20 @@ void ClipboardWindow::clear_search() {
 
 void ClipboardWindow::update_type_filter_button(int index) {
     type_filter_index = index;
-    for (int action_index = 0; action_index < type_filter_actions.size(); ++action_index) type_filter_actions[action_index]->setChecked(action_index == index);
     refresh_type_filter_button();
 }
 
 void ClipboardWindow::refresh_type_filter_button() {
-    // A filter group's kind is fixed: the button shows it greyed out; other views show the user's choice.
-    if (!type_filter_btn) return;
+    if (type_filter_tabs.isEmpty()) return;
     const auto rule = controller->current_filter_rule();
     const auto fixed = rule ? rule->kind : std::nullopt;
     const int index = fixed ? std::max<int>(0, type_filter_kinds().indexOf(*fixed)) : type_filter_index;
-    type_filter_btn->setText(type_filter_labels[index]);
-    type_filter_btn->setEnabled(!fixed);
-    type_filter_btn->setToolTip(fixed ? tr_text("Fixed by this filter group") : tr_text("Filter Type"));
+    for (int i = 0; i < type_filter_tabs.size(); ++i) {
+        type_filter_tabs[i]->setChecked(i == index);
+        type_filter_tabs[i]->setEnabled(!fixed);
+        type_filter_tabs[i]->setToolTip(fixed ? tr_text("Fixed by this filter group") : QString());
+    }
 }
-
-void ClipboardWindow::show_type_filter_menu() { type_filter_menu->exec(type_filter_btn->mapToGlobal(QPoint(0, type_filter_btn->height()))); }
 
 void ClipboardWindow::set_type_filter(int index) {
     update_type_filter_button(index);
@@ -1066,8 +1108,33 @@ void ClipboardWindow::show_item_context_menu(qint64 item_id, const QPoint &pos) 
         return;
     }
     selection_manager->clear_marks();
-    const auto ctx = controller->build_context_menu_data(item_id);
+    auto ctx = controller->build_context_menu_data(item_id);
     if (!ctx) return;
+    if (const auto item = get_item_data(item_id)) {
+        MenuAction menu;
+        menu.key = "plugin_actions";
+        menu.label = "Plugins";
+        for (const auto &plugin : plugins::action_plugins(*item)) {
+            MenuAction action;
+            action.key = "plugin_action_" + plugin.id;
+            action.label = plugin.name;
+            action.translate_label = false;
+            menu.children.append(action);
+        }
+        for (const auto &plugin : plugins::metadata_plugins(*item)) {
+            MenuAction action;
+            action.key = "plugin_metadata_" + plugin.id;
+            action.label = plugin.name;
+            action.translate_label = false;
+            menu.children.append(action);
+        }
+        if (!menu.children.isEmpty()) {
+            int position = ctx->actions.size();
+            for (int i = 0; i < ctx->actions.size(); ++i)
+                if (ctx->actions[i].key == "sep_before_delete") { position = i; break; }
+            ctx->actions.insert(position, menu);
+        }
+    }
     ClipboardItemContextMenu(this, menu_style(), translate_window, item_context_menu_handlers(item_id),
                              {[this, item_id](const QString &action_key) { return resolve_item_context_menu_handler(item_id, action_key); }})
         .show(list_widget, pos, *ctx);
@@ -1114,6 +1181,13 @@ QMap<QString, std::function<void()>> ClipboardWindow::item_context_menu_handlers
     return {
         {"paste", [this, item_id] { paste_item_to_clipboard(item_id); }},
         {"start_marking", [this, item_id] { selection_manager->mark(item_id); }},
+        {"preview_item", [this, item_id] { preview_item(item_id); }},
+        {"preview_formats", [this, item_id] {
+             if (const auto item = get_item_data(item_id)) {
+                 PreviewPopup::instance()->hide_preview();
+                 show_detail_preview(*item, manager, this, current_theme, "formats");
+             }
+         }},
         {"pin_image", [this, item_id] { create_pin_window(item_id); }},
         {"save_image_as", [this, item_id] { save_image_item_as(this, manager, controller->get_item(item_id)); }},
         {"save_item_as", [this, item_id] { save_item_as(item_id); }},
@@ -1132,6 +1206,23 @@ QMap<QString, std::function<void()>> ClipboardWindow::item_context_menu_handlers
 }
 
 std::function<void()> ClipboardWindow::resolve_item_context_menu_handler(qint64 item_id, const QString &action_key) {
+    const QString metadata_prefix = "plugin_metadata_";
+    if (action_key.startsWith(metadata_prefix)) return [this, item_id, id = action_key.mid(metadata_prefix.size())] {
+        if (const auto item = get_item_data(item_id); item && plugins::edit_item_metadata(id, *item, manager, this)) request_data_refresh("Plugin metadata");
+    };
+    const QString action_prefix = "plugin_action_";
+    if (action_key.startsWith(action_prefix)) return [this, item_id, id = action_key.mid(action_prefix.size())] {
+        const auto item = get_item_data(item_id);
+        if (!item) return;
+        const bool started = plugins::run_action(id, *item, manager, this, [this](const std::optional<QString> &result) {
+            if (!result || !ClipboardManager::set_clipboard_text(*result)) {
+                show_warning_dialog(this, tr_text("Plugins"), tr_text("Plugin action failed."));
+                return;
+            }
+            show_toast(tr_text("Copied to clipboard"));
+        });
+        if (!started) show_warning_dialog(this, tr_text("Plugins"), tr_text("Plugin action failed."));
+    };
     if (action_key == "remove_from_group") return [this, item_id] { controller->move_to_group(item_id, std::nullopt); };
     const QString prefix = "move_to_group_";
     if (action_key.startsWith(prefix)) {
@@ -1229,6 +1320,13 @@ bool ClipboardWindow::save_quick_edit(qint64 item_id, const QString &text) {
 }
 
 void ClipboardWindow::create_pin_window(qint64 item_id) { create_pin_from_clipboard_item(item_id, controller, this); }
+
+void ClipboardWindow::preview_item(qint64 item_id) {
+    if (const auto item = get_item_data(item_id)) {
+        PreviewPopup::instance()->hide_preview();
+        show_detail_preview(*item, manager, this, current_theme);
+    }
+}
 
 void ClipboardWindow::start_item_drag(qint64 item_id) {
     if (dragging_) return;

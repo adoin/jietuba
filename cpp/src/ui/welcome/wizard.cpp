@@ -1,5 +1,6 @@
 #include "ui/welcome/wizard.h"
 #include "core/i18n.h"
+#include "core/branding.h"
 #include "core/logger.h"
 #include "core/resource_manager.h"
 #include "core/ui_scale.h"
@@ -225,11 +226,11 @@ void WelcomeWizard::build_ui() {
     brand_icon_ = new QLabel(sidebar_);
     brand_icon_->setFixedSize(dialog_scaled(38), dialog_scaled(38));
     brand_icon_->setAlignment(Qt::AlignCenter);
-    const QIcon icon(ResourceManager::get_resource_path(QString::fromUtf8("svg/托盘.svg")));
+    const QIcon icon(QStringLiteral(":/app.ico"));
     if (!icon.isNull()) brand_icon_->setPixmap(icon.pixmap(dialog_scaled(24), dialog_scaled(24)));
     auto *brand_text_box = new QVBoxLayout;
     brand_text_box->setSpacing(0);
-    brand_name_ = new QLabel(PRODUCT_NAME, sidebar_);
+    brand_name_ = new QLabel(brand_name(), sidebar_);
     brand_meta_ = new QLabel("PRODUCT SETUP", sidebar_);
     brand_text_box->addWidget(brand_name_);
     brand_text_box->addWidget(brand_meta_);

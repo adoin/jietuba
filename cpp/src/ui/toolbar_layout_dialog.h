@@ -13,7 +13,7 @@ class ComboBox;
 class ToolbarLayoutRow : public DraggableRow {
     Q_OBJECT
 public:
-    ToolbarLayoutRow(const QString &key, const QIcon &icon, QWidget *parent = nullptr);
+    ToolbarLayoutRow(const QString &key, const QIcon &icon, QWidget *parent = nullptr, const QString &name = {});
     QString mode() const;
     void set_mode(const QString &mode);
     QString key;
@@ -26,7 +26,7 @@ class ToolbarLayoutDialog : public QDialog {
     Q_OBJECT
 public:
     ToolbarLayoutDialog(const QJsonArray &layout, const QMap<QString, QIcon> &icons, QWidget *parent = nullptr,
-                        const toolbar_layout::LayoutProfile &profile = toolbar_layout::SCREENSHOT);
+                        const toolbar_layout::LayoutProfile &profile = toolbar_layout::SCREENSHOT, const QMap<QString, QString> &names = {});
     // The edited layout; locked buttons go back to their positions from when the dialog was filled.
     QJsonArray entries() const;
 private:

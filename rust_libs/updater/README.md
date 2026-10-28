@@ -1,6 +1,6 @@
 # 独立 Rust 更新器
 
-支持 Windows x64 / ARM64，按主程序通过 `--variant` 报告的版本类型选择 GitHub Release ZIP：`full` 取完整版包里的 `jietuba_pp.exe`，`lite` 取轻量版包里的 `jietuba_lite.exe`。只提取对应 EXE 并原地替换当前主程序，主程序改过文件名也照常更新；不修改配置、剪贴板历史、模型或其他文件。
+支持 Windows x64 / ARM64，按主程序通过 `--variant` 报告的版本类型选择 `branding.json` 配置的独立仓库中的 Release ZIP：`full` 取完整版包里的 `<name>_pp.exe`，`lite` 取轻量版包里的 `<name>_lite.exe`。只提取对应 EXE 并原地替换当前主程序，主程序改过文件名也照常更新；不修改配置、剪贴板历史、模型或其他文件。
 版本类型由打包脚本写入程序内的 `updater/app_variant.txt`。缺少对应下载包时停止更新，不切换版本类型。
 校验 ZIP 可读、根目录 EXE 唯一、PE 格式有效且匹配已安装应用的架构；不要求上游提供清单、签名或哈希附件。
 

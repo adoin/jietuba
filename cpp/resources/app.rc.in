@@ -17,10 +17,10 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "ProductName", "jietuba"
+            VALUE "ProductName", "@JTM_DISPLAY_NAME@"
             VALUE "ProductVersion", "@JIETUBA_APP_VERSION@"
             VALUE "FileVersion", "@JIETUBA_APP_VERSION@"
-            VALUE "FileDescription", "jietuba"
+            VALUE "FileDescription", "@JTM_DISPLAY_NAME@"
             VALUE "InternalName", "@JIETUBA_EXE_NAME@"
             VALUE "OriginalFilename", "@JIETUBA_EXE_NAME@.exe"
             VALUE "LegalCopyright", "Copyright (c) 2025 JYAARU"

@@ -212,6 +212,8 @@ bool jb_video_recorder_run(const JbVideoRecorder *recorder, JbVideoEventCallback
 // are JSON; returned text, bytes and id lists are freed by their _free function.
 struct JbClipboard;
 typedef void (*JbClipboardItemCallback)(const char *item_json, void *user);
+typedef bool (*JbClipboardCaptureFilter)(const char *item_json, void *user);
+void jb_clipboard_set_capture_filter(const JbClipboard *clipboard, JbClipboardCaptureFilter callback, void *user);
 JbClipboard *jb_clipboard_open(const char *db_path, char *error, size_t error_len);
 void jb_clipboard_free(JbClipboard *clipboard);
 void jb_clipboard_text_free(char *text);
@@ -259,9 +261,16 @@ bool jb_clipboard_move_to_group(const JbClipboard *clipboard, int64_t item_id, c
 bool jb_clipboard_move_group_between(const JbClipboard *clipboard, int64_t id, const int64_t *before_id, const int64_t *after_id, char *error, size_t error_len);
 bool jb_clipboard_get_by_group(const JbClipboard *clipboard, const int64_t *group_id, int64_t offset, int64_t limit, char **out_json, char *error,
                                size_t error_len);
+bool jb_clipboard_get_group_filtered(const JbClipboard *clipboard, int64_t group_id, int64_t offset, int64_t limit, const char *search, const char *kind,
+                                     const int64_t *start, const int64_t *end, char **out_json, char *error, size_t error_len);
 bool jb_clipboard_paste_item(const JbClipboard *clipboard, int64_t id, bool with_html, bool move_to_top, bool *out_ok, char *error, size_t error_len);
 bool jb_clipboard_paste_as_files(const JbClipboard *clipboard, int64_t id, bool *out_ok, char *error, size_t error_len);
 bool jb_clipboard_paste_items(const JbClipboard *clipboard, const int64_t *ids, size_t count, bool with_html, bool move_to_top, const char *separator,
                               bool plain_text, const char *layout, bool keep_in_history, int64_t **out_ids, size_t *out_count, char *error, size_t error_len);
 bool jb_clipboard_get_image_data(const JbClipboard *clipboard, const char *image_id, uint8_t **out, size_t *out_len, char *error, size_t error_len);
+bool jb_clipboard_get_format(const JbClipboard *clipboard, int64_t id, const char *name, uint8_t **out, size_t *out_len, char *error, size_t error_len);
+bool jb_clipboard_format_names(const JbClipboard *clipboard, int64_t id, char **out_json, char *error, size_t error_len);
+bool jb_clipboard_get_metadata(const JbClipboard *clipboard, int64_t id, const char *plugin, char **out_json, char *error, size_t error_len);
+bool jb_clipboard_set_metadata(const JbClipboard *clipboard, int64_t id, const char *plugin, const char *data, bool *updated, char *error, size_t error_len);
+bool jb_clipboard_metadata_matches(const JbClipboard *clipboard, int64_t id, const char *text, bool *matched, char *error, size_t error_len);
 }

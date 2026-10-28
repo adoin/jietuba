@@ -2574,6 +2574,52 @@ Replace it?</source>
 <!-- ========== Clipboard Window ========== -->
 <context>
     <name>ClipboardWindow</name>
+    <message><source>Could not save plugin data.</source><translation>플러그인 데이터를 저장할 수 없습니다.</translation></message>
+    <message><source>Could not prepare the backup.</source><translation>백업을 준비할 수 없습니다.</translation></message>
+    <message><source>Keep this password; it cannot be recovered.</source><translation>암호는 복구할 수 없으므로 안전하게 보관하세요.</translation></message>
+    <message><source>A referenced image is missing; the backup was not created.</source><translation>참조된 이미지가 없어 백업을 만들지 않았습니다.</translation></message>
+    <message><source>The clipboard history is too large for this backup plugin.</source><translation>클립보드 기록이 이 플러그인의 크기 제한을 초과했습니다.</translation></message>
+    <message><source>Choose a different backup file.</source><translation>다른 백업 파일을 선택하세요.</translation></message>
+    <message><source>Backup Password</source><translation>백업 암호</translation></message>
+    <message><source>Password</source><translation>암호</translation></message>
+    <message><source>Confirm Password</source><translation>암호 확인</translation></message>
+    <message><source>Enter a non-empty matching password.</source><translation>동일한 암호를 입력하세요.</translation></message>
+    <message><source>Working…</source><translation>처리 중…</translation></message>
+    <message><source>Clipboard Backup</source><translation>클립보드 백업</translation></message>
+    <message><source>Backup Clipboard</source><translation>클립보드 백업</translation></message>
+    <message><source>Restore Clipboard</source><translation>클립보드 복원</translation></message>
+    <message><source>Encrypted Backups (*.jtbbackup)</source><translation>암호화된 백업 (*.jtbbackup)</translation></message>
+    <message><source>Replace the existing backup file?</source><translation>기존 백업 파일을 바꾸시겠습니까?</translation></message>
+    <message><source>Clipboard data is unavailable.</source><translation>클립보드 데이터를 사용할 수 없습니다.</translation></message>
+    <message><source>Backup saved to %1</source><translation>백업을 %1에 저장했습니다</translation></message>
+    <message><source>Backup failed or was cancelled.</source><translation>백업이 실패했거나 취소되었습니다.</translation></message>
+    <message><source>Choose a Folder for Restored Data</source><translation>복원할 데이터 폴더 선택</translation></message>
+    <message><source>Could not create the restore folder.</source><translation>복원 폴더를 만들 수 없습니다.</translation></message>
+    <message><source>Restore failed or was cancelled. Check the password and backup file.</source><translation>복원이 실패했거나 취소되었습니다. 암호와 백업 파일을 확인하세요.</translation></message>
+    <message><source>Restored to %1. Use this history now? Current data will be kept.</source><translation>%1에 복원했습니다. 이 기록을 사용하시겠습니까? 현재 데이터는 유지됩니다.</translation></message>
+    <message><source>Could not open restored history; the current data was kept.</source><translation>복원된 기록을 열 수 없습니다. 현재 데이터는 유지됩니다.</translation></message>
+    <message><source>Save Changes</source><translation>저장</translation></message>
+    <message><source>Cancel</source><translation>취소</translation></message>
+    <message><source>Plugin Settings</source><translation>플러그인 설정</translation></message>
+    <message><source>Could not save plugin settings.</source><translation>플러그인 설정을 저장할 수 없습니다.</translation></message>
+    <message><source>A capture filter failed. Matching items will not be saved until it is fixed or disabled.</source><translation>수집 필터에 오류가 발생했습니다. 수정하거나 비활성화할 때까지 해당 항목은 저장되지 않습니다.</translation></message>
+    <message><source>Plugins</source><translation>플러그인</translation></message>
+    <message><source>Plugin action failed.</source><translation>플러그인 작업에 실패했습니다.</translation></message>
+    <message><source>Copied to clipboard</source><translation>클립보드에 복사했습니다</translation></message>
+    <message><source>Formats</source><translation>형식</translation></message>
+    <message><source>No stored formats</source><translation>저장된 형식이 없습니다</translation></message>
+    <message><source>Other</source><translation>기타</translation></message>
+    <message><source>Manage Plugins</source><translation>플러그인 관리</translation></message>
+    <message><source>Uninstall</source><translation>제거</translation></message>
+    <message><source>Uninstall plugin %1?</source><translation>플러그인 %1을(를) 제거하시겠습니까?</translation></message>
+    <message><source>Could not change plugin state.</source><translation>플러그인 상태를 변경할 수 없습니다.</translation></message>
+    <message><source>Could not uninstall plugin.</source><translation>플러그인을 제거할 수 없습니다.</translation></message>
+    <message><source>Install Plugin</source><translation>플러그인 설치</translation></message>
+    <message><source>Plugin Packages (*.jtbplugin)</source><translation>플러그인 패키지 (*.jtbplugin)</translation></message>
+    <message><source>Plugins can access screenshots, clipboard contents and files. Install only plugins you trust.</source><translation>플러그인은 스크린샷, 클립보드 내용과 파일에 접근할 수 있습니다. 신뢰하는 플러그인만 설치하세요.</translation></message>
+    <message><source>Plugin installed: %1</source><translation>플러그인 설치됨: %1</translation></message>
+    <message><source>Plugin already installed</source><translation>플러그인이 이미 설치되어 있습니다</translation></message>
+    <message><source>Preview</source><translation>미리보기</translation></message>
     <message>
         <source>Clipboard History</source>
         <translation>클립보드 기록</translation>
@@ -3072,6 +3118,7 @@ This action cannot be undone.</source>
 <!-- ========== Clipboard Management Dialog ========== -->
 <context>
     <name>ManageDialog</name>
+    <message><source>Other</source><translation>기타</translation></message>
     <message><source>Please enter a valid link</source><translation>유효한 링크를 입력하세요</translation></message>
     <message>
         <source>Clipboard Management</source>

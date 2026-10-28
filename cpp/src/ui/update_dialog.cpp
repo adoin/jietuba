@@ -14,7 +14,7 @@ QString tr_dialog(const char *text) { return QCoreApplication::translate("Update
 UpdateDialog::UpdateDialog(const ReleaseInfo &release) : StandardDialog(nullptr, "", "") {
     setWindowModality(Qt::NonModal);
     setWindowTitle(tr_dialog("Update Available"));
-    setWindowIcon(ResourceManager::get_icon_by_name(QString::fromUtf8("托盘.svg")));
+    setWindowIcon(QIcon(QStringLiteral(":/app.ico")));
     resize(660, 480);
     auto *box = static_cast<QVBoxLayout *>(layout());
     box->setContentsMargins(18, 14, 18, 14);

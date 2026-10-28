@@ -20,6 +20,11 @@ use std::time::{Duration, Instant};
 
 /// 监听线程每记下一条就调用一次
 pub type ItemCallback = Arc<dyn Fn(&PyClipboardItem) + Send + Sync>;
+pub type CaptureFilter = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+fn capture_allowed(filter: &Arc<Mutex<Option<CaptureFilter>>>, request: &str) -> bool {
+    let current = filter.lock().clone();
+    current.map_or(true, |predicate| predicate(request))
+}
 /// 监听线程调用回调前先经过它；Python 绑定在这里拿 GIL（见 start_monitor）
 pub type CallbackGate = fn(&mut dyn FnMut());
 
@@ -72,20 +77,21 @@ fn wait_until_clipboard_settles() -> Option<u32> {
 ///
 /// 格式含义见 https://learn.microsoft.com/windows/win32/dataxchg/clipboard-formats
 #[cfg(target_os = "windows")]
-fn is_marked_private(clipboard: &win_clipboard::OpenClipboardGuard) -> bool {
-    let present = |name: &str| {
-        let format = win_clipboard::register_format(name);
-        format != 0 && clipboard.is_available(format)
-    };
-    if present("ExcludeClipboardContentFromMonitorProcessing") || present("Clipboard Viewer Ignore") {
+fn private_markers(present: impl Fn(&str) -> bool, read: impl Fn(&str) -> Option<Vec<u8>>) -> bool {
+    if ["ExcludeClipboardContentFromMonitorProcessing", "Clipboard Viewer Ignore", "application/x-copyq-secret"].iter().any(|name| present(name)) {
         return true;
     }
-    // CanIncludeInClipboardHistory 是一个 DWORD，0 表示不要进历史
-    let format = win_clipboard::register_format("CanIncludeInClipboardHistory");
-    format != 0
-        && clipboard.is_available(format)
-        && clipboard.read(format)
-            .is_some_and(|data| data.len() >= 4 && u32::from_le_bytes([data[0], data[1], data[2], data[3]]) == 0)
+    // A zero DWORD is used by password managers and private browser sessions.
+    ["CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"].iter().any(|name| {
+        present(name) && read(name).is_some_and(|data| data.len() >= 4 && u32::from_le_bytes([data[0], data[1], data[2], data[3]]) == 0)
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn is_marked_private(clipboard: &win_clipboard::OpenClipboardGuard) -> bool {
+    let format = |name: &str| win_clipboard::register_format(name);
+    private_markers(|name| { let id = format(name); id != 0 && clipboard.is_available(id) },
+                    |name| clipboard.read(format(name)))
 }
 
 /// 一次打开剪贴板读下来的内容
@@ -97,6 +103,39 @@ struct CapturedClipboard {
     names: Vec<(u32, String)>,
     /// 内容是表格单元格；这时不读位图
     spreadsheet: bool,
+}
+
+// Registered formats normally use global memory, but virtual-file/OLE formats can
+// demand delayed rendering or carry handles instead of a self-contained block.
+#[cfg(target_os = "windows")]
+fn capture_extra_format(name: &str) -> bool {
+    const EXCLUDED: &[&str] = &[
+        "ExcludeClipboardContentFromMonitorProcessing", "Clipboard Viewer Ignore", "CanIncludeInClipboardHistory",
+        "CanUploadToCloudClipboard", "application/x-copyq-secret", "FileContents", "FileGroupDescriptor", "FileGroupDescriptorW",
+        "Object Descriptor", "Link Source Descriptor", "Embed Source", "Embedded Object", "Link Source",
+        "Preferred DropEffect", "Performed DropEffect", "Logical Performed DropEffect", "Paste Succeeded",
+    ];
+    !name.is_empty() && !EXCLUDED.iter().any(|excluded| name.eq_ignore_ascii_case(excluded))
+        && !name.to_ascii_lowercase().starts_with("biff")
+}
+
+#[cfg(target_os = "windows")]
+fn custom_format_summary(formats: &[(u32, String, Vec<u8>)]) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    let mut entries: Vec<_> = formats.iter().filter(|(id, name, data)| {
+        *id >= win_clipboard::FIRST_REGISTERED_FORMAT && capture_extra_format(name)
+            && name != text_kind::COLOR_MARKER_FORMAT && !data.is_empty()
+    }).collect();
+    if entries.is_empty() { return None; }
+    entries.sort_by(|a, b| a.1.cmp(&b.1));
+    let mut digest = Sha256::new();
+    for (_, name, data) in &entries {
+        digest.update((name.len() as u64).to_le_bytes());
+        digest.update(name.as_bytes());
+        digest.update((data.len() as u64).to_le_bytes());
+        digest.update(data);
+    }
+    Some(serde_json::json!({"formats": entries.iter().map(|(_, name, _)| name).collect::<Vec<_>>(), "digest": format!("{:x}", digest.finalize())}).to_string())
 }
 
 #[cfg(target_os = "windows")]
@@ -134,10 +173,26 @@ fn capture_clipboard(window: &win_clipboard::ClipboardWindow) -> Option<Captured
     if !spreadsheet {
         wanted.extend([CF_DIB, CF_DIBV5, register_format("PNG"), register_format("Rich Text Format")]);
     }
-    let formats = wanted.into_iter()
+    let mut formats: Vec<_> = wanted.into_iter()
         .filter(|format| *format != 0 && clipboard.is_available(*format))
         .filter_map(|format| clipboard.read(format).map(|data| (format, format_name(format), data)))
         .collect();
+    // Extra registered formats are bounded independently of the main payload.
+    // Avoid expensive spreadsheet delayed rendering and virtual-file streams.
+    if !spreadsheet {
+        let mut extra_total = 0usize;
+        let mut extra_count = 0;
+        for (format, name) in &names {
+            if *format < FIRST_REGISTERED_FORMAT || formats.iter().any(|(id, _, _)| id == format) || !capture_extra_format(name) { continue; }
+            if extra_count >= 16 || extra_total >= 16 * 1024 * 1024 { break; }
+            let limit = (16 * 1024 * 1024 - extra_total).min(4 * 1024 * 1024);
+            if let Some(data) = clipboard.read_bounded(*format, limit) {
+                extra_total += data.len();
+                extra_count += 1;
+                formats.push((*format, name.clone(), data));
+            }
+        }
+    }
     Some(CapturedClipboard { formats, names, spreadsheet })
 }
 
@@ -403,6 +458,7 @@ pub struct ClipboardManager {
     db_path: String,
     /// 历史记录数量限制，0 表示不限制
     history_limit: Arc<std::sync::atomic::AtomicI64>,
+    capture_filter: Arc<Mutex<Option<CaptureFilter>>>,
 }
 
 /// 全局历史限制（供监听线程使用）
@@ -431,6 +487,7 @@ impl ClipboardManager {
             db: Arc::new(Mutex::new(db)),
             db_path: path,
             history_limit: Arc::new(std::sync::atomic::AtomicI64::new(0)),
+            capture_filter: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -496,6 +553,7 @@ impl ClipboardManager {
         }
         
         let db = self.db.clone();
+        let capture_filter = self.capture_filter.clone();
         
         // 获取图片存储路径
         let images_dir = {
@@ -540,6 +598,7 @@ impl ClipboardManager {
                 #[cfg(target_os = "windows")]
                 window: Option<win_clipboard::ClipboardWindow>,
                 gate: CallbackGate,
+                capture_filter: Arc<Mutex<Option<CaptureFilter>>>,
             }
             
             // 生成缩略图 Base64
@@ -641,8 +700,21 @@ impl ClipboardManager {
                         false
                     };
 
-                    if text_val.is_none() && files_val.is_none() && image_val.is_none() && !raw_image_fallback {
+                    let custom_summary = if text_val.is_none() && files_val.is_none() && image_val.is_none() && !raw_image_fallback {
+                        custom_format_summary(&raw_formats)
+                    } else { None };
+                    if text_val.is_none() && files_val.is_none() && image_val.is_none() && !raw_image_fallback && custom_summary.is_none() {
                         return;
+                    }
+
+                    // Filtering happens before image files or history records are written.
+                    if self.capture_filter.lock().is_some() {
+                        let content_type = if text_val.is_some() { "text" } else if image_val.is_some() || raw_image_fallback { "image" }
+                                           else if files_val.is_some() { "file" } else { "custom" };
+                        let request = serde_json::json!({"content_type":content_type,
+                            "content":text_val.as_deref().unwrap_or(""),"source_app":source_app.as_deref().unwrap_or(""),
+                            "paths":files_val.as_ref().cloned().unwrap_or_default()}).to_string();
+                        if !capture_allowed(&self.capture_filter, &request) { return; }
                     }
 
                     // ── 第三步：构造主记录 ────────────────────────────────────
@@ -694,6 +766,9 @@ impl ClipboardManager {
                     } else if let Some(files) = files_val {
                         let content = serde_json::json!({ "files": files }).to_string();
                         main_item = PyClipboardItem::new(0, content, "file".to_string());
+                        main_item.source_app = source_app;
+                    } else if let Some(summary) = custom_summary {
+                        main_item = PyClipboardItem::new(0, summary, "custom".to_string());
                         main_item.source_app = source_app;
                     } else {
                         // raw_image_fallback：多图/EMF 等解不出单张图的图片内容
@@ -788,6 +863,7 @@ impl ClipboardManager {
             let handler = Handler {
                 db,
                 images_dir,
+                capture_filter,
                 #[cfg(target_os = "windows")]
                 window: win_clipboard::ClipboardWindow::new(),
                 gate,
@@ -876,6 +952,30 @@ impl ClipboardManager {
     pub fn get_raw_formats(&self, id: i64) -> Result<Vec<(u32, String, Vec<u8>)>, String> {
         let db = self.db.lock();
         db.get_formats(id)
+    }
+
+    pub fn set_capture_filter(&self, filter: Option<CaptureFilter>) {
+        *self.capture_filter.lock() = filter;
+    }
+
+    pub fn get_format_bounded(&self, id: i64, name: &str, limit: usize) -> Result<Option<Vec<u8>>, String> {
+        self.db.lock().get_format_bounded(id, name, limit)
+    }
+
+    pub fn format_names(&self, id: i64) -> Result<Vec<String>, String> {
+        self.db.lock().format_names(id)
+    }
+
+    pub fn plugin_metadata(&self, id: i64, plugin_id: &str) -> Result<Option<String>, String> {
+        self.db.lock().plugin_metadata(id, plugin_id)
+    }
+
+    pub fn set_plugin_metadata(&self, id: i64, plugin_id: &str, data: &str) -> Result<bool, String> {
+        self.db.lock().set_plugin_metadata(id, plugin_id, data)
+    }
+
+    pub fn metadata_matches(&self, id: i64, text: &str) -> Result<bool, String> {
+        self.db.lock().metadata_matches(id, text)
     }
 
     /// 手动保存一批原始剪贴板格式数据（主要用于测试或外部调用）
@@ -1204,6 +1304,11 @@ impl ClipboardManager {
     pub fn get_by_group(&self, group_id: Option<i64>, offset: i64, limit: i64) -> Result<PyPaginatedResult, String> {
         let db = self.db.lock();
         db.query_by_group(group_id, offset, limit)
+    }
+
+    pub fn get_group_filtered(&self, group_id: i64, offset: i64, limit: i64, search: Option<String>, kind: Option<String>,
+                              start: Option<i64>, end: Option<i64>) -> Result<PyPaginatedResult, String> {
+        self.db.lock().query_group_filtered(group_id, offset, limit, search, kind, start, end)
     }
 
     /// 增加粘贴次数（当用户粘贴某项时调用）
@@ -1636,6 +1741,58 @@ fn formats_from_item(
 mod paste_format_tests {
     use super::*;
     use win_clipboard::*;
+
+    #[test]
+    fn registered_formats_are_filtered_and_custom_payloads_are_distinct() {
+        assert!(!capture_extra_format("FileContents"));
+        assert!(!capture_extra_format("Clipboard Viewer Ignore"));
+        assert!(!capture_extra_format("Biff12"));
+        assert!(capture_extra_format("application/example"));
+        let one = vec![(FIRST_REGISTERED_FORMAT, "application/example".to_string(), vec![1, 2, 3])];
+        let two = vec![(FIRST_REGISTERED_FORMAT, "application/example".to_string(), vec![1, 2, 4])];
+        let summary = custom_format_summary(&one).unwrap();
+        assert_ne!(summary, custom_format_summary(&two).unwrap());
+        assert!(summary.contains("application/example"));
+        assert!(custom_format_summary(&[(FIRST_REGISTERED_FORMAT, "FileContents".to_string(), vec![1])]).is_none());
+        let db = Database::new(":memory:").unwrap();
+        let item = PyClipboardItem::new(0, summary, "custom".to_string());
+        let id = db.store_capture(&item, &[(FIRST_REGISTERED_FORMAT, "application/example".into(), vec![1, 2, 3], false)], 100).unwrap();
+        assert_eq!(db.store_capture(&item, &[(FIRST_REGISTERED_FORMAT, "application/example".into(), vec![1, 2, 3], false)], 100).unwrap(), id);
+        let different = PyClipboardItem::new(0, custom_format_summary(&two).unwrap(), "custom".to_string());
+        assert_ne!(db.store_capture(&different, &[(FIRST_REGISTERED_FORMAT, "application/example".into(), vec![1, 2, 4], false)], 100).unwrap(), id);
+        let saved = db.get_item_by_id(id).unwrap().unwrap();
+        assert_eq!(saved.content_type, "custom");
+        assert_eq!(db.format_names(id).unwrap(), vec!["application/example"]);
+        assert_eq!(db.get_format_bounded(id, "application/example", 32).unwrap(), Some(vec![1, 2, 3]));
+        let restored = formats_to_restore(&saved, db.get_formats(id).unwrap(), false);
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].1, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn private_markers_are_not_recorded() {
+        for marker in ["Clipboard Viewer Ignore", "ExcludeClipboardContentFromMonitorProcessing", "application/x-copyq-secret"] {
+            assert!(private_markers(|name| name == marker, |_| None));
+        }
+        for marker in ["CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"] {
+            assert!(private_markers(|name| name == marker, |_| Some(vec![0, 0, 0, 0])));
+            assert!(!private_markers(|name| name == marker, |_| Some(vec![1, 0, 0, 0])));
+        }
+        assert!(!private_markers(|_| false, |_| None));
+    }
+
+    #[test]
+    fn capture_filter_can_block_before_storage_and_be_changed() {
+        let filter: Arc<Mutex<Option<CaptureFilter>>> = Arc::new(Mutex::new(Some(Arc::new(|_| false))));
+        let db = Database::new(":memory:").unwrap();
+        let item = PyClipboardItem::new(0, "sensitive".into(), "text".into());
+        if capture_allowed(&filter, "{}") { db.store_capture(&item, &[], 100).unwrap(); }
+        assert_eq!(db.query_items(0, 10, None, &FilterRule::default(), None, None).unwrap().items.len(), 0);
+        *filter.lock() = Some(Arc::new(|_| true));
+        assert!(capture_allowed(&filter, "{}"));
+        *filter.lock() = None;
+        assert!(capture_allowed(&filter, "{}"));
+    }
 
     #[test]
     fn a_missing_image_file_is_rebuilt_from_the_stored_formats() {

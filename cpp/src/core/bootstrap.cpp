@@ -364,7 +364,7 @@ int run(int argc, char **argv) {
     setup_environment();
     // 2./3. Module paths and pinning onefile resources do not apply to a native build.
     // 4. The taskbar identity, before QApplication exists.
-    set_app_user_model_id("jietuba.app");
+    set_app_user_model_id();
     // 5. On the first start with a data folder, what older versions stored elsewhere, before anything reads it.
     data_folder::migrate(data_location(), data_folder::default_sources(data_location()));
     // 6. In admin mode the elevated instance started by the scheduled task runs instead.

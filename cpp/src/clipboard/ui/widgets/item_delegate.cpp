@@ -76,7 +76,7 @@ bool ClipboardItemDelegate::has_left_column(int row) const { return !marked_ids_
 int ClipboardItemDelegate::text_width(const ClipboardItem &item, int row, int width) const {
     const int left = has_left_column(row) ? scaled(SHORTCUT_BADGE_WIDTH + 4) : scaled(12);
     const int icon = item.color ? scaled(54) : !item.icon().isEmpty() && !(hide_file_icon_ && item.content_type == "file") ? scaled(24) : 0;
-    return std::max(1, width - 1 - scaled(5) - left - icon - (item.is_pinned ? scaled(24) : 0));
+    return std::max(1, width - 1 - scaled(5) - left - icon - (item.is_pinned ? scaled(24) : 0) - (item.has_metadata ? scaled(20) : 0));
 }
 
 QRectF ClipboardItemDelegate::mark_circle_rect(const QRect &row_rect) const {
@@ -292,13 +292,18 @@ void ClipboardItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem 
     const QRect text_rect(x_offset, content_top, content_right - x_offset, line_height);
     // Room on the right for the pin mark.
     const int pin_width = item_data.is_pinned ? scaled(24) : 0;
-    const auto lines = text_lines(item_data, text_rect.width() - pin_width);
+    const int metadata_width = item_data.has_metadata ? scaled(20) : 0;
+    const auto lines = text_lines(item_data, text_rect.width() - pin_width - metadata_width);
     for (int line = 0; line < lines.size(); ++line)
         painter->drawText(text_rect.translated(0, line * line_height), Qt::AlignVCenter, lines[line]);
 
     // ---- Pin mark ----
     if (item_data.is_pinned)
         painter->drawText(QRect(content_right - pin_width, content_top, pin_width, line_height), Qt::AlignVCenter | Qt::AlignRight, QString::fromUtf8("📌"));
+    if (item_data.has_metadata) {
+        painter->setPen(cc.text_tertiary);
+        painter->drawText(QRect(content_right - pin_width - metadata_width, content_top, metadata_width, line_height), Qt::AlignCenter, QString::fromUtf8("✎"));
+    }
 
     // ---- Second line: metadata ----
     if (show_metadata_) {

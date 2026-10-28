@@ -1,4 +1,5 @@
 #include "core/update_cache.h"
+#include "core/constants.h"
 #include "core/update_checker.h"
 #include "core/update_controller.h"
 #include "core/updater_process.h"
@@ -168,7 +169,7 @@ private slots:
         QCOMPARE(info.tag_name, QString("v2.1.0"));
         QCOMPARE(info.title, QString("Version 2.1"));
         QCOMPARE(info.notes, QString("Added update checking."));
-        QCOMPARE(info.url, QString("https://github.com/1003129155/jietuba/releases/latest"));
+        QCOMPARE(info.url, PROJECT_RELEASES_LATEST_URL);
     }
 
     void parseReleasePayloadRejectsUnusableResponses() {
@@ -293,7 +294,7 @@ private slots:
     }
 
     void buildWithoutHelperShowsExplanation() {
-        if (QFileInfo::exists(":/updater/jietuba_updater.exe")) QSKIP("This build bundles the helper");
+        if (QFileInfo::exists(QStringLiteral(":/updater/" JTM_NAME "_updater.exe"))) QSKIP("This build bundles the helper");
         use_controller();
         set_helper_source_for_test({});
         controller_->start();
@@ -475,10 +476,11 @@ private slots:
 
     // With JIETUBA_UPDATES the real helper is in the resources: its copy runs and reports a release build.
     void bundledHelperRunsFromItsCopy() {
-        if (!QFileInfo::exists(":/updater/jietuba_updater.exe")) QSKIP("Built without JIETUBA_UPDATES");
+        if (!QFileInfo::exists(QStringLiteral(":/updater/" JTM_NAME "_updater.exe"))) QSKIP("Built without JIETUBA_UPDATES");
         set_helper_source_for_test({});
         QVERIFY(updater_bundled());
         const QString copied = helper_path();
+        QCOMPARE(QFileInfo(copied).fileName(), QStringLiteral(JTM_NAME "_updater.exe"));
         QProcess process;
         process.start(copied, {"--version"});
         QVERIFY(process.waitForFinished(10000));

@@ -83,7 +83,7 @@ QWidget *create_about_page(SettingsDialog *dialog) {
     license_card->addControl(details_btn, Qt::AlignLeft);
     group->addSettingCard(license_card);
 
-    auto *github_card = new SettingCard(FluentIcon::GitHub, dialog->tr_text("Source Code"), "github.com/1003129155/jietuba", group);
+    auto *github_card = new SettingCard(FluentIcon::GitHub, dialog->tr_text("Source Code"), PROJECT_GITHUB_URL.mid(8), group);
     auto *link_btn = new HyperlinkButton(PROJECT_GITHUB_URL, dialog->tr_text("Open GitHub"), github_card);
     github_card->addControl(link_btn, Qt::AlignLeft);
     group->addSettingCard(github_card);

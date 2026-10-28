@@ -108,7 +108,12 @@ const std::vector<std::pair<QString, std::pair<QString, QString>>> &PRESET_THEME
 }
 
 ThemeManager::ThemeManager() {
-    const auto *saved = preset_theme(get_tool_settings_manager()->get_clipboard_theme());
+    auto *settings = get_tool_settings_manager();
+    const QString name = settings->get_clipboard_theme();
+    // Move existing pink and purple windows to the neutral toolbar palette; the
+    // presets remain available for anyone who chooses them again explicitly.
+    if (name == "pink" || name == "purple") settings->set_clipboard_theme("light");
+    const auto *saved = preset_theme(settings->get_clipboard_theme());
     current_theme_ = saved ? *saved : THEME_LIGHT();
 }
 

@@ -1,4 +1,5 @@
 #include "core/i18n.h"
+#include "core/branding.h"
 #include "core/logger.h"
 #include "core/resource_manager.h"
 #include "core/ui_scale.h"
@@ -152,7 +153,7 @@ protected:
         try_load_icon();
         auto *text_box = new QVBoxLayout;
         text_box->setSpacing(0);
-        name_lbl_ = new QLabel(PRODUCT_NAME, this);
+        name_lbl_ = new QLabel(brand_name(), this);
         set_welcome_label_style(name_lbl_, "primary", 18, 700);
         meta_lbl_ = new QLabel("PRODUCTIVITY SUITE", this);
         set_welcome_label_style(meta_lbl_, "accent", 9, 600, "letter-spacing: 1px;");
@@ -166,7 +167,7 @@ protected:
     }
 private:
     void try_load_icon() {
-        const QString path = ResourceManager::get_resource_path(QString::fromUtf8("svg/托盘.svg"));
+        const QString path = QStringLiteral(":/app.ico");
         if (QFileInfo::exists(path)) {
             icon_lbl_->setPixmap(QIcon(path).pixmap(dialog_scaled(25), dialog_scaled(25)));
             return;

@@ -1,4 +1,5 @@
 #include "core/update_cache.h"
+#include "core/branding.h"
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -119,7 +120,7 @@ void remove_directory(const QString &directory) {
         if (!std::all_of(files.begin(), files.end(), [](const QFileInfo &file) { return plain(file.absoluteFilePath()); })) return;
         // A running Windows helper cannot be deleted. Try it before other files.
         std::stable_sort(files.begin(), files.end(), [](const QFileInfo &a, const QFileInfo &b) {
-            return (a.fileName() != "jietuba_updater.exe") < (b.fileName() != "jietuba_updater.exe");
+            return (a.fileName() != QStringLiteral(JTM_NAME "_updater.exe")) < (b.fileName() != QStringLiteral(JTM_NAME "_updater.exe"));
         });
         for (const auto &file : files)
             if (!QFile::remove(file.absoluteFilePath())) return;

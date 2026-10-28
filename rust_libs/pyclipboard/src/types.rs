@@ -33,6 +33,8 @@ pub struct PyClipboardItem {
     pub char_count: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(default)]
+    pub has_metadata: bool,
 }
 
 impl PyClipboardItem {
@@ -53,6 +55,7 @@ impl PyClipboardItem {
             char_count: None,
             created_at: now,
             updated_at: now,
+            has_metadata: false,
         }
     }
 }

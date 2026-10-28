@@ -6,6 +6,7 @@
 #include "core/ui_theme.h"
 #include "main_app.h"
 #include "pin/pin_manager.h"
+#include "plugins/plugin_manager_dialog.h"
 #include "settings/tool_settings.h"
 #include "ui/dialogs.h"
 #include "ui/key_chip.h"
@@ -170,6 +171,13 @@ QMenu *create_tray_menu(MainApp *app) {
     menu->addSeparator();
     add_pin_actions(menu);
     menu->addSeparator();
+
+    auto *action_install_plugin = new QAction(i18n_tr("Install Plugin", "ClipboardWindow"), menu);
+    QObject::connect(action_install_plugin, &QAction::triggered, app, [] { plugins::install_plugin_interactively(nullptr); });
+    menu->addAction(action_install_plugin);
+    auto *action_manage_plugins = new QAction(i18n_tr("Manage Plugins", "ClipboardWindow"), menu);
+    QObject::connect(action_manage_plugins, &QAction::triggered, app, [] { plugins::show_plugin_manager(nullptr); });
+    menu->addAction(action_manage_plugins);
 
     auto *action_settings = new QAction(tr_text("Settings"), menu);
     QObject::connect(action_settings, &QAction::triggered, app, &MainApp::open_settings);

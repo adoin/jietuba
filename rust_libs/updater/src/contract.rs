@@ -17,8 +17,8 @@ impl AppVariant {
     }
     pub fn name(self) -> &'static str {
         match self {
-            Self::Full => "jietuba_pp",
-            Self::Lite => "jietuba_lite",
+            Self::Full => concat!(env!("JTM_NAME"), "_pp"),
+            Self::Lite => concat!(env!("JTM_NAME"), "_lite"),
         }
     }
     pub fn executable_name(self) -> String {
@@ -123,5 +123,7 @@ mod tests {
         assert_eq!(AppVariant::parse("lite").unwrap(), AppVariant::Lite);
         assert_eq!(AppVariant::parse("full").unwrap(), AppVariant::Full);
         assert_eq!(AppVariant::parse("pp").unwrap_err().code, "variant");
+        assert_eq!(AppVariant::Full.executable_name(), format!("{}_pp.exe", env!("JTM_NAME")));
+        assert_eq!(AppVariant::Lite.asset_name("release-1.2.3", Arch::X64), format!("{}_lite-release-1.2.3-x64.zip", env!("JTM_NAME")));
     }
 }

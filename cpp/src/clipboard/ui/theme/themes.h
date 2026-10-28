@@ -10,26 +10,26 @@ namespace jietuba::clipboard {
 struct ThemeColors {
     // Backgrounds
     QString bg_primary = "#FFFFFF";
-    QString bg_secondary = "#E0EAF0";
+    QString bg_secondary = "#FFFFFF";
     QString bg_tertiary = "#F5F6F8";
     QString bg_hover = "#F0F0F0";
-    QString bg_selected = "#DCE6ED";
+    QString bg_selected = "#D5F5F1";
     // Marked rows in the clipboard list: the accent, so marks never read as the neutral cursor.
-    QString bg_selected_highlight = "rgba(111, 143, 171, 0.45)";
+    QString bg_selected_highlight = "rgba(64, 224, 208, 0.30)";
     // Text
     QString text_primary = "#333333";
     QString text_secondary = "#666666";
     QString text_tertiary = "#999999";
     QString text_disabled = "#CCCCCC";
-    QString text_accent = "#58738C";
+    QString text_accent = "#176B65";
     // Borders
     QString border_primary = "#E0E0E0";
     QString border_secondary = "#E8E8E8";
-    QString border_accent = "#6F8FAB";
-    QString border_selected = "#6F8FAB";
+    QString border_accent = "#36BFB2";
+    QString border_selected = "#36BFB2";
     // Functional colours
-    QString accent_primary = "#6F8FAB";
-    QString accent_hover = "#627F99";
+    QString accent_primary = "#238E84";
+    QString accent_hover = "#19756D";
     QString success = "#4CAF50";
     QString success_bg = "#E8F5E9";
     QString success_hover = "#388E3C";
@@ -41,7 +41,7 @@ struct ThemeColors {
     // Special
     QString drag_drop_border = "#4DAF50";
     QString separator = "#E0E0E0";
-    QString shortcut_key_color = "#58738C";
+    QString shortcut_key_color = "#176B65";
 };
 
 struct Theme {

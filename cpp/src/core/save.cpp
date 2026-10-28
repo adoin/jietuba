@@ -1,4 +1,5 @@
 #include "core/save.h"
+#include "core/brand_config.h"
 #include "core/logger.h"
 #include "settings/tool_settings.h"
 #include <QBuffer>
@@ -109,7 +110,7 @@ bool SaveService::save_pdf(const QImage &image, QIODevice *device, int dpi) {
     writer.setResolution(dpi);
     writer.setPageSize(QPageSize(QSizeF(flattened.width() * 72.0 / dpi, flattened.height() * 72.0 / dpi), QPageSize::Point, "Screenshot"));
     writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout::Point);
-    writer.setCreator("jietuba");
+    writer.setCreator(QStringLiteral(JTM_DISPLAY_NAME));
     QPainter painter(&writer);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
     painter.drawImage(QRectF(0, 0, writer.width(), writer.height()), flattened, QRectF(0, 0, flattened.width(), flattened.height()));

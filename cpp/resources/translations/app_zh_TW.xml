@@ -2599,6 +2599,52 @@ Replace it?</source>
 </context>
 <context>
     <name>ClipboardWindow</name>
+    <message><source>Could not save plugin data.</source><translation>無法儲存外掛資料。</translation></message>
+    <message><source>Could not prepare the backup.</source><translation>無法準備備份。</translation></message>
+    <message><source>Keep this password; it cannot be recovered.</source><translation>請妥善保存密碼；遺失後無法找回。</translation></message>
+    <message><source>A referenced image is missing; the backup was not created.</source><translation>有引用的圖片遺失，未建立備份。</translation></message>
+    <message><source>The clipboard history is too large for this backup plugin.</source><translation>剪貼簿歷史記錄超出此外掛支援的大小。</translation></message>
+    <message><source>Choose a different backup file.</source><translation>請選擇其他備份檔案。</translation></message>
+    <message><source>Backup Password</source><translation>備份密碼</translation></message>
+    <message><source>Password</source><translation>密碼</translation></message>
+    <message><source>Confirm Password</source><translation>確認密碼</translation></message>
+    <message><source>Enter a non-empty matching password.</source><translation>請輸入一致且非空的密碼。</translation></message>
+    <message><source>Working…</source><translation>處理中…</translation></message>
+    <message><source>Clipboard Backup</source><translation>剪貼簿備份</translation></message>
+    <message><source>Backup Clipboard</source><translation>備份剪貼簿</translation></message>
+    <message><source>Restore Clipboard</source><translation>還原剪貼簿</translation></message>
+    <message><source>Encrypted Backups (*.jtbbackup)</source><translation>加密備份 (*.jtbbackup)</translation></message>
+    <message><source>Replace the existing backup file?</source><translation>取代現有備份檔案？</translation></message>
+    <message><source>Clipboard data is unavailable.</source><translation>剪貼簿資料無法使用。</translation></message>
+    <message><source>Backup saved to %1</source><translation>備份已儲存至 %1</translation></message>
+    <message><source>Backup failed or was cancelled.</source><translation>備份失敗或已取消。</translation></message>
+    <message><source>Choose a Folder for Restored Data</source><translation>選擇還原資料的資料夾</translation></message>
+    <message><source>Could not create the restore folder.</source><translation>無法建立還原資料夾。</translation></message>
+    <message><source>Restore failed or was cancelled. Check the password and backup file.</source><translation>還原失敗或已取消，請檢查密碼和備份檔案。</translation></message>
+    <message><source>Restored to %1. Use this history now? Current data will be kept.</source><translation>已還原至 %1。現在使用此歷史記錄嗎？目前資料將保留。</translation></message>
+    <message><source>Could not open restored history; the current data was kept.</source><translation>無法開啟還原的歷史記錄；目前資料已保留。</translation></message>
+    <message><source>Save Changes</source><translation>儲存</translation></message>
+    <message><source>Cancel</source><translation>取消</translation></message>
+    <message><source>Plugin Settings</source><translation>外掛設定</translation></message>
+    <message><source>Could not save plugin settings.</source><translation>無法儲存外掛設定。</translation></message>
+    <message><source>A capture filter failed. Matching items will not be saved until it is fixed or disabled.</source><translation>擷取過濾外掛出錯；修復或停用前，符合的內容不會儲存。</translation></message>
+    <message><source>Plugins</source><translation>外掛</translation></message>
+    <message><source>Plugin action failed.</source><translation>外掛操作失敗。</translation></message>
+    <message><source>Copied to clipboard</source><translation>已複製到剪貼簿</translation></message>
+    <message><source>Formats</source><translation>格式</translation></message>
+    <message><source>No stored formats</source><translation>沒有儲存的格式</translation></message>
+    <message><source>Other</source><translation>其他</translation></message>
+    <message><source>Manage Plugins</source><translation>管理外掛</translation></message>
+    <message><source>Uninstall</source><translation>解除安裝</translation></message>
+    <message><source>Uninstall plugin %1?</source><translation>解除安裝外掛 %1？</translation></message>
+    <message><source>Could not change plugin state.</source><translation>無法變更外掛狀態。</translation></message>
+    <message><source>Could not uninstall plugin.</source><translation>無法解除安裝外掛。</translation></message>
+    <message><source>Install Plugin</source><translation>安裝外掛</translation></message>
+    <message><source>Plugin Packages (*.jtbplugin)</source><translation>外掛套件 (*.jtbplugin)</translation></message>
+    <message><source>Plugins can access screenshots, clipboard contents and files. Install only plugins you trust.</source><translation>外掛可以存取螢幕擷取畫面、剪貼簿內容和檔案。請只安裝信任的外掛。</translation></message>
+    <message><source>Plugin installed: %1</source><translation>外掛已安裝：%1</translation></message>
+    <message><source>Plugin already installed</source><translation>此外掛已安裝</translation></message>
+    <message><source>Preview</source><translation>預覽</translation></message>
     <message>
         <source>Clipboard History</source>
         <translation>剪貼簿歷史</translation>
@@ -3093,6 +3139,7 @@ This action cannot be undone.</source>
 </context>
 <context>
     <name>ManageDialog</name>
+    <message><source>Other</source><translation>其他</translation></message>
     <message>
         <source>Please enter a valid link</source>
         <translation>請輸入有效的連結</translation>

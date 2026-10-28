@@ -1,5 +1,6 @@
 #pragma once
 #include "clipboard/core/models.h"
+#include "clipboard/ui/theme/themes.h"
 #include <QLabel>
 #include <QPoint>
 #include <QRect>
@@ -7,6 +8,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <optional>
+
+class QDialog;
 
 namespace jietuba {
 class TextEdit;
@@ -21,6 +24,9 @@ class ClipboardManager;
 // the panel goes right of pos, or left when that does not fit.
 QPoint side_position(const QSize &size, const QPoint &pos, const std::optional<QRect> &avoid_rect = std::nullopt, const QString &prefer_side = "auto",
                      std::optional<int> gap = std::nullopt);
+
+// An interactive full preview, owned by parent and deleted when closed.
+QDialog *show_detail_preview(const ClipboardItem &item, ClipboardManager &manager, QWidget *parent, const Theme &theme, const QString &mode = "preview");
 
 // Hover preview of an item: full text, file list or the original image. One instance.
 class PreviewPopup : public QWidget {

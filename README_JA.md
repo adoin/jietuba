@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="svg/%E6%89%98%E7%9B%98.svg" width="128" alt="jietuba logo" />
+<img src="assets/jietuma-logo.png" width="128" alt="Jietuma logo" />
 
-# jietuba
+# Jietuma
 
 **Windows 向けスクリーンショット・OCR・ピン留め・翻訳・クリップボードツール**
 
-[![build](https://img.shields.io/github/actions/workflow/status/1003129155/jietuba/cpp.yml?branch=master2&label=build&style=flat-square)](https://github.com/1003129155/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/1003129155/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/1003129155/jietuba?style=flat-square)](https://github.com/1003129155/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
+[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuba/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuba?style=flat-square)](https://github.com/adoin/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
 
-[Windows 版をダウンロード](https://github.com/1003129155/jietuba/releases/latest) · [ソースからビルド](#source-setup) · [開発とテスト](#development)
+[Windows 版をダウンロード](https://github.com/adoin/jietuba/releases/latest) · [ソースからビルド](#source-setup) · [開発とテスト](#development)
 
 [中文](README_zh-CN.md) | [English](README.md) | **日本語**
 
@@ -16,7 +16,9 @@
 
 ## 概要
 
-jietuba は Windows 向けの無料・オープンソースのスクリーンショットツールです。キャプチャ、注釈、OCR、翻訳、ピン留め、画面録画、クリップボード履歴を 1 つのプログラムにまとめ、すべてローカルで動作します。
+ブランド名と公開先は [branding.json](branding.json) で設定します。下記の `{name}` はその `name` を表します。
+
+Jietuma は Windows 向けの無料・オープンソースのスクリーンショットツールです。キャプチャ、注釈、OCR、翻訳、ピン留め、画面録画、クリップボード履歴を 1 つのプログラムにまとめ、すべてローカルで動作します。
 
 C++（Qt6）で実装し、画像処理・クリップボード・PP-OCR エンジンなどのコアは Rust で実装しています。Windows x86_64 および ARM64 に対応。以前の Python（PySide6）実装は [`archive/python`](https://github.com/1003129155/jietuba/tree/archive/python) ブランチにアーカイブ済みで、今後は更新しません。
 
@@ -78,12 +80,12 @@ C++（Qt6）で実装し、画像処理・クリップボード・PP-OCR エン�
 
 ## ダウンロードと起動
 
-1. [Releases ページ](https://github.com/1003129155/jietuba/releases/latest)を開き、端末に合わせて `-x64.zip` または `-arm64.zip` で終わるファイルをダウンロードします。ランタイムのインストールは不要です。
+1. [Releases ページ](https://github.com/adoin/jietuba/releases/latest)を開き、端末に合わせて `-x64.zip` または `-arm64.zip` で終わるファイルをダウンロードします。ランタイムのインストールは不要です。
 2. ZIP 全体を展開し、中の exe をダブルクリックして起動します。
 
-|  | 完全版 `jietuba_pp-…zip` | 軽量版 `jietuba_lite-…zip` |
+|  | 完全版 `{name}_pp-…zip` | 軽量版 `{name}_lite-…zip` |
 |---|---|---|
-| 中身 | `jietuba_pp.exe` と同じ階層の `models/` フォルダー（両方必要） | 単一の `jietuba_lite.exe` |
+| 中身 | `{name}_pp.exe` と同じ階層の `models/` フォルダー（両方必要） | 単一の `{name}_lite.exe` |
 | OCR エンジン | Snipping Tool の OCR + 同梱の PP-OCR、どの Windows でも認識可能 | 既定では Windows 11 Snipping Tool の OCR のみ。設定から [PP-OCR コンポーネント](#ppocr-pack)をダウンロード可能 |
 | おすすめ | Windows 10、またはすぐに OCR を使いたい場合 | Windows 11 で、サイズを小さくしたい場合 |
 
@@ -112,7 +114,7 @@ C++（Qt6）で実装し、画像処理・クリップボード・PP-OCR エン�
 
 ## コード署名ポリシー
 
-Windows 版リリースに含まれる `jietuba_pp.exe` と `jietuba_lite.exe` は、どちらも GitHub Actions がこのリポジトリの [cpp/](cpp/) の C++ ソースから自動ビルドし、SignPath で署名します。
+Windows 版リリースに含まれる `{name}_pp.exe` と `{name}_lite.exe` は、どちらも GitHub Actions がこのリポジトリの [cpp/](cpp/) の C++ ソースから自動ビルドし、設定時に SignPath で署名します。
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
@@ -147,8 +149,8 @@ Qt 6 の MSVC x64 SDK を持っている場合は `.\scripts\build.ps1 -QtRoot C
 リリース用の単一ファイル版は Qt と MSVC ランタイムを静的リンクし、システム DLL だけに依存します。まず `.\scripts\build_static_qt.ps1` で Qt の公式ソースから静的 SDK をビルドし、続けて次を実行します。
 
 ```powershell
-.\build.cmd -Static          # 軽量版：dist/Release-static/jietuba_lite.exe
-.\build.cmd -Static -Full    # フル版：dist/Release-static-full/jietuba_pp.exe（ONNX Runtime を内蔵し、既定の PP-OCR モデルを同梱）
+.\build.cmd -Static          # 軽量版：dist/Release-static/{name}_lite.exe
+.\build.cmd -Static -Full    # フル版：dist/Release-static-full/{name}_pp.exe（ONNX Runtime を内蔵し、既定の PP-OCR モデルを同梱）
 ```
 
 ARM64 版は x64 上でクロスコンパイルします。先に x64 の静的 Qt をビルドし、`.\scripts\build_static_qt.ps1 -Arch arm64` と `.\build.cmd -Static -Arch arm64` を実行します。Visual Studio の MSVC ARM64 ビルドツールと `rustup target add aarch64-pc-windows-msvc` が必要です。バージョン番号はリポジトリ直下の `VERSION` ファイルから取得します。
@@ -172,7 +174,7 @@ ctest --test-dir build\msvc -C Release --output-on-failure -E "_desktop$|_window
 
 [C++ CI](.github/workflows/cpp.yml) はすべてのプルリクエストでビルドしてテストを実行し、変更したコードの行カバレッジを確認します。`rust_libs/` を変更したときは [Rust CI](.github/workflows/rust.yml) が Rust の単体テストとサードパーティライセンスの再確認を行います。
 
-リリースは [build.yml](.github/workflows/build.yml) で行います。タグは `release-<VERSION ファイルのバージョン>` でなければなりません。[lite.yml](.github/workflows/lite.yml) が x64 と ARM64 の軽量版・フル版をビルドし、署名後にそれぞれ `jietuba_lite-<tag>-<arch>.zip` と `jietuba_pp-<tag>-<arch>.zip` を作成します。
+リリースは [build.yml](.github/workflows/build.yml) で行います。タグは `release-<VERSION ファイルのバージョン>` でなければなりません。[lite.yml](.github/workflows/lite.yml) が x64 と ARM64 の軽量版・フル版をビルドし、設定に応じて署名した後にそれぞれ `{name}_lite-<tag>-<arch>.zip` と `{name}_pp-<tag>-<arch>.zip` を作成します。
 
 ---
 

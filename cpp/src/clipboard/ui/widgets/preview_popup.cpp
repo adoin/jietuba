@@ -1,5 +1,7 @@
 #include "clipboard/ui/widgets/preview_popup.h"
 #include "clipboard/core/manager.h"
+#include "clipboard/preview/preview_provider.h"
+#include "core/i18n.h"
 #include "core/logger.h"
 #include "core/text_utils.h"
 #include "core/ui_scale.h"
@@ -7,15 +9,21 @@
 #include "ui/fluent_lite/inputs.h"
 #include <QApplication>
 #include <QCoreApplication>
+#include <QComboBox>
+#include <QDialog>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPixmap>
 #include <QPainter>
 #include <QScreen>
+#include <QScrollArea>
+#include <QStringDecoder>
 #include <QTextDocument>
 
 namespace jietuba::clipboard {
@@ -27,6 +35,138 @@ QPixmap preview_pixmap(const QByteArray &data) {
     pixmap.loadFromData(data);
     return pixmap.scaled(scaled(400), scaled(300), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 }
+
+// Clipboard HTML is untrusted. Do not let QTextDocument read local files or
+// fetch remote resources while displaying a preview.
+class PreviewDocument : public QTextDocument {
+public:
+    explicit PreviewDocument(QObject *parent) : QTextDocument(parent) {}
+protected:
+    QVariant loadResource(int, const QUrl &) override { return {}; }
+};
+
+bool local_file_preview(const QString &path, QString *text, QPixmap *image) {
+    if (path.startsWith("\\\\") || path.startsWith("//")) return false;
+    const QFileInfo info(path);
+    if (!info.isFile()) return false;
+    const QString suffix = info.suffix().toLower();
+    const QStringList image_types = {"png", "jpg", "jpeg", "bmp", "gif", "webp"};
+    if (image_types.contains(suffix)) {
+        QImageReader reader(path);
+        const QSize size = reader.size();
+        if (!size.isValid() || qint64(size.width()) * size.height() > 40000000) return false;
+        *image = QPixmap::fromImage(reader.read());
+        return !image->isNull();
+    }
+    const QStringList text_types = {"txt", "md", "log", "csv", "tsv", "json", "xml", "html", "htm", "css", "js", "ts", "py", "cpp", "h", "rs"};
+    if (!text_types.contains(suffix) || info.size() > 1024 * 1024) return false;
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    const QByteArray bytes = file.read(1024 * 1024 + 1);
+    if (bytes.size() > 1024 * 1024 || bytes.contains('\0')) return false;
+    QStringDecoder decoder(QStringDecoder::Utf8);
+    *text = decoder.decode(bytes);
+    return !decoder.hasError();
+}
+
+}
+
+QDialog *show_detail_preview(const ClipboardItem &item, ClipboardManager &manager, QWidget *parent, const Theme &theme, const QString &mode) {
+    auto *dialog = new QDialog(parent, Qt::Window);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setObjectName("clipboardDetailPreview");
+    dialog->setWindowTitle(i18n_tr(mode == "formats" ? "Formats" : "Preview", "ClipboardWindow"));
+    dialog->resize(scaled(700), scaled(500));
+    const auto &c = theme.colors;
+    dialog->setStyleSheet(QString("QDialog { background: %1; color: %2; } QTextEdit, QScrollArea { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; }")
+                              .arg(c.bg_primary, c.text_primary, c.border_primary).arg(scaled(6)));
+    auto *layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(scaled(12), scaled(12), scaled(12), scaled(12));
+    if (mode == "formats") {
+        auto *selector = new QComboBox(dialog);
+        selector->setObjectName("previewFormatSelector");
+        selector->addItem(i18n_tr("All", "ClipboardWindow"), QString());
+        for (const auto &name : manager.format_names(item.id)) selector->addItem(name, name);
+        layout->addWidget(selector);
+        auto *editor = new TextEdit(dialog);
+        editor->setObjectName("previewContent");
+        editor->setReadOnly(true);
+        editor->setDocument(new PreviewDocument(editor));
+        layout->addWidget(editor);
+        auto refresh = [editor, selector, item, &manager] {
+            const QString selected = selector->currentData().toString();
+            const auto rendered = resolve_preview(item, manager, {}, "formats", selected);
+            if (rendered && rendered->kind == PreviewContent::Kind::Html) editor->setHtml(rendered->text);
+            else if (rendered && rendered->kind == PreviewContent::Kind::Markdown) editor->document()->setMarkdown(rendered->text);
+            else if (rendered && rendered->kind == PreviewContent::Kind::Text) editor->setPlainText(rendered->text);
+            else if (!selected.isEmpty()) {
+                const auto bytes = manager.get_format(item.id, selected);
+                editor->setPlainText(bytes ? QString::fromLatin1(bytes->left(256).toHex(' ')) + (bytes->size() > 256 ? QString::fromUtf8(" …") : QString())
+                                          : i18n_tr("No stored formats", "ClipboardWindow"));
+            } else {
+                const QString names = manager.format_names(item.id).join('\n');
+                editor->setPlainText(names.isEmpty() ? i18n_tr("No stored formats", "ClipboardWindow") : names);
+            }
+        };
+        QObject::connect(selector, &QComboBox::currentIndexChanged, dialog, [refresh](int) { refresh(); });
+        refresh();
+        dialog->show();
+        dialog->raise();
+        dialog->activateWindow();
+        return dialog;
+    }
+    const auto preview = resolve_preview(item, manager, {}, mode);
+    QPixmap image;
+    QString text = item.content_type == "custom" ? item.display_text() : item.content;
+    const bool rich = item.content_type == "text" && item.html_content && !item.html_content->isEmpty();
+    QString file_path;
+    if (preview) {
+        text = preview->text;
+        if (preview->kind == PreviewContent::Kind::Image) image.loadFromData(preview->image);
+    } else if (item.content_type == "image") {
+        if (item.image_id) if (const auto bytes = manager.get_image_data(*item.image_id)) image.loadFromData(*bytes);
+        if (image.isNull() && item.thumbnail && item.thumbnail->startsWith("data:image"))
+            image.loadFromData(QByteArray::fromBase64(item.thumbnail->mid(item.thumbnail->indexOf(u',') + 1).toLatin1()));
+    } else if (item.content_type == "file") {
+        const QStringList paths = item_paths(item);
+        text = paths.join('\n');
+        if (paths.size() == 1) {
+            file_path = paths.front();
+            QString file_text;
+            if (local_file_preview(file_path, &file_text, &image) && image.isNull()) text = file_text;
+        }
+    }
+    if (!file_path.isEmpty()) {
+        auto *label = new QLabel(QDir::toNativeSeparators(file_path), dialog);
+        label->setTextFormat(Qt::PlainText);
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        layout->addWidget(label);
+    }
+    if (!image.isNull()) {
+        auto *scroll = new QScrollArea(dialog);
+        scroll->setObjectName("previewImageScroll");
+        auto *label = new QLabel;
+        label->setPixmap(image);
+        label->setAlignment(Qt::AlignCenter);
+        label->adjustSize();
+        scroll->setWidget(label);
+        scroll->setAlignment(Qt::AlignCenter);
+        layout->addWidget(scroll);
+    } else {
+        auto *editor = new TextEdit(dialog);
+        editor->setObjectName("previewContent");
+        editor->setReadOnly(true);
+        editor->setDocument(new PreviewDocument(editor));
+        if (preview && preview->kind == PreviewContent::Kind::Html) editor->setHtml(text);
+        else if (preview && preview->kind == PreviewContent::Kind::Markdown) editor->document()->setMarkdown(text);
+        else if (!preview && mode != "formats" && rich) editor->setHtml(*item.html_content);
+        else editor->setPlainText(text);
+        layout->addWidget(editor);
+    }
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
+    return dialog;
 }
 
 QPoint side_position(const QSize &size, const QPoint &pos, const std::optional<QRect> &avoid_rect, const QString &prefer_side, std::optional<int> gap_value) {
@@ -173,6 +313,11 @@ void PreviewPopup::do_show() {
         if (!show_image_preview(item)) show_text_preview(item);
     } else if (item.content_type == "file") show_file_preview(item);
     else if (item.content_type == "text") show_text_preview(item);
+    else if (item.content_type == "custom") {
+        ClipboardItem summary = item;
+        summary.content = item.display_text();
+        show_text_preview(summary);
+    }
     else return;
 
     adjustSize();

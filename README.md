@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="svg/%E6%89%98%E7%9B%98.svg" width="128" alt="jietuba logo" />
+<img src="assets/jietuma-logo.png" width="128" alt="Jietuma logo" />
 
-# jietuba
+# Jietuma
 
 **Screenshot, OCR, Pin, Translation & Clipboard Tool for Windows**
 
-[![build](https://img.shields.io/github/actions/workflow/status/1003129155/jietuba/cpp.yml?branch=master2&label=build&style=flat-square)](https://github.com/1003129155/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/1003129155/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/1003129155/jietuba?style=flat-square)](https://github.com/1003129155/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
+[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuba/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuba?style=flat-square)](https://github.com/adoin/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
 
-[Download for Windows](https://github.com/1003129155/jietuba/releases/latest) · [Build from Source](#source-setup) · [Development and Tests](#development)
+[Download for Windows](https://github.com/adoin/jietuba/releases/latest) · [Build from Source](#source-setup) · [Development and Tests](#development)
 
 [中文](README_zh-CN.md) | **English** | [日本語](README_JA.md)
 
@@ -16,7 +16,7 @@
 
 ## Overview
 
-jietuba is a free, open-source screenshot tool for Windows: capture, annotation, OCR, translation, pinning, screen recording and clipboard history in one program, all running locally.
+Jietuma is a free, open-source screenshot tool for Windows: capture, annotation, OCR, translation, pinning, screen recording and clipboard history in one program, all running locally. This branch is an independent distribution of the upstream project; its name and release repository are configured in [branding.json](branding.json). See [branding and releases](docs/branding.md); `{name}` in package filenames refers to its `name` field.
 
 It is written in C++ (Qt6), with image processing, clipboard access, the PP-OCR engine and other core parts in Rust, and runs on Windows x86_64 and ARM64. The earlier Python (PySide6) implementation is archived on the [`archive/python`](https://github.com/1003129155/jietuba/tree/archive/python) branch and no longer updated.
 
@@ -78,12 +78,12 @@ A smooth, three-way "screenshot ⇄ clipboard ⇄ pin" workflow.
 
 ## Download and Run
 
-1. Open the [Releases page](https://github.com/1003129155/jietuba/releases/latest) and download the archive ending in `-x64.zip` or `-arm64.zip` for your device. No runtime needs installing.
+1. Open the [Releases page](https://github.com/adoin/jietuba/releases/latest) and download the archive ending in `-x64.zip` or `-arm64.zip` for your device. No runtime needs installing.
 2. Extract the entire archive and double-click the exe inside.
 
-|  | Full `jietuba_pp-…zip` | Lite `jietuba_lite-…zip` |
+|  | Full `{name}_pp-…zip` | Lite `{name}_lite-…zip` |
 |---|---|---|
-| Contents | `jietuba_pp.exe` and the `models/` folder beside it (keep both) | A single `jietuba_lite.exe` |
+| Contents | `{name}_pp.exe` and the `models/` folder beside it (keep both) | A single `{name}_lite.exe` |
 | OCR engines | Snipping Tool OCR + bundled PP-OCR, works on any Windows | Only the Windows 11 Snipping Tool OCR by default; the [PP-OCR pack](#ppocr-pack) can be downloaded in Settings |
 | Best for | Windows 10, or OCR that works out of the box | Windows 11 and a smaller download |
 
@@ -112,7 +112,7 @@ You can also place the files by hand in the `models/` folder beside the exe: `PP
 
 ## Code Signing Policy
 
-The `jietuba_pp.exe` and `jietuba_lite.exe` files in the Windows releases are both built by GitHub Actions from the C++ source in this repository's [cpp/](cpp/) and signed through SignPath.
+The `{name}_pp.exe` and `{name}_lite.exe` files in the Windows releases are both built by GitHub Actions from the C++ source in this repository's [cpp/](cpp/) and signed through SignPath when configured.
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
@@ -147,8 +147,8 @@ If you already have a Qt 6 MSVC x64 SDK, use `.\scripts\build.ps1 -QtRoot C:\Qt\
 The released single-file builds link Qt and the MSVC runtime statically and depend only on system DLLs. Build a static Qt SDK from Qt's official sources with `.\scripts\build_static_qt.ps1`, then:
 
 ```powershell
-.\build.cmd -Static          # Lite: dist/Release-static/jietuba_lite.exe
-.\build.cmd -Static -Full    # Full: dist/Release-static-full/jietuba_pp.exe, embeds ONNX Runtime and ships the default PP-OCR models
+.\build.cmd -Static          # Lite: dist/Release-static/{name}_lite.exe
+.\build.cmd -Static -Full    # Full: dist/Release-static-full/{name}_pp.exe, embeds ONNX Runtime and ships the default PP-OCR models
 ```
 
 The ARM64 build is cross-compiled on x64: build the x64 static Qt first, then run `.\scripts\build_static_qt.ps1 -Arch arm64` and `.\build.cmd -Static -Arch arm64`. It needs Visual Studio's MSVC ARM64 build tools and `rustup target add aarch64-pc-windows-msvc`. The version number comes from the repository's `VERSION` file.
@@ -172,7 +172,7 @@ The test programs run in a temporary sandbox and never read or write your own se
 
 [C++ CI](.github/workflows/cpp.yml) builds every pull request, runs the tests and checks the line coverage of the changed code; when `rust_libs/` changes, [Rust CI](.github/workflows/rust.yml) runs the Rust unit tests and rechecks third-party notices.
 
-Releases are made by [build.yml](.github/workflows/build.yml): the tag must be `release-<version in the VERSION file>`; [lite.yml](.github/workflows/lite.yml) builds the Lite and Full packages for x64 and ARM64, which are signed and published as `jietuba_lite-<tag>-<arch>.zip` and `jietuba_pp-<tag>-<arch>.zip`.
+Releases are made by [build.yml](.github/workflows/build.yml): the tag must be `release-<version in the VERSION file>`; [lite.yml](.github/workflows/lite.yml) builds the Lite and Full packages for x64 and ARM64, which are optionally signed and published as `{name}_lite-<tag>-<arch>.zip` and `{name}_pp-<tag>-<arch>.zip`.
 
 ---
 

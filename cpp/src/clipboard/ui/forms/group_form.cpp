@@ -1,4 +1,5 @@
 #include "clipboard/ui/forms/group_form.h"
+#include "core/branding.h"
 #include "clipboard/core/manager.h"
 #include "clipboard/services/group_service.h"
 #include "clipboard/ui/dialogs/manage_dialog.h"
@@ -30,7 +31,7 @@ void build_name_section(ManageDialog *dialog, const QString &name, const QString
 
 // A source app's name in the list: the exe name without ".exe", this program's builds as one entry.
 QString source_app_label(const QString &app) {
-    if (app.compare(OWN_SOURCE_APP, Qt::CaseInsensitive) == 0) return ManageDialog::tr_text("Jietuba (this app)");
+    if (app.compare(OWN_SOURCE_APP, Qt::CaseInsensitive) == 0) return brand_display(ManageDialog::tr_text("Jietuba (this app)"));
     return app.endsWith(".exe", Qt::CaseInsensitive) ? app.chopped(4) : app;
 }
 
@@ -45,7 +46,7 @@ void build_filter_rule_section(ManageDialog *dialog, const FilterRule &rule, int
 
     auto *kind_combo = new ComboBox;
     const std::pair<QString, const char *> kinds[] = {{QString(), "All Types"},     {"text", "Text"},  {SUB_KIND_URL, "Link"}, {SUB_KIND_COLOR, "Color"},
-                                                      {SUB_KIND_PATH, "Path"}, {"image", "Image"}, {"file", "File"}};
+                                                      {SUB_KIND_PATH, "Path"}, {"image", "Image"}, {"file", "File"}, {"custom", "Other"}};
     for (const auto &[kind, label] : kinds) kind_combo->addItem(ManageDialog::tr_text(label), kind);
     kind_combo->setCurrentIndex(std::max(0, kind_combo->findData(rule.kind.value_or(QString()))));
 

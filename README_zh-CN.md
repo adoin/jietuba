@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="svg/%E6%89%98%E7%9B%98.svg" width="128" alt="截图吧 logo" />
+<img src="assets/jietuma-logo.png" width="128" alt="截图妈 logo" />
 
-# 截图吧
+# 截图妈 Jietuma
 
 **Windows 截图、OCR、钉图、翻译与剪贴板工具**
 
-[![build](https://img.shields.io/github/actions/workflow/status/1003129155/jietuba/cpp.yml?branch=master2&label=build&style=flat-square)](https://github.com/1003129155/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/1003129155/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/1003129155/jietuba?style=flat-square)](https://github.com/1003129155/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
+[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuba/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuba?style=flat-square)](https://github.com/adoin/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
 
-[下载 Windows 版](https://github.com/1003129155/jietuba/releases/latest) · [从源码构建](#source-setup) · [开发与测试](#development)
+[下载 Windows 版](https://github.com/adoin/jietuba/releases/latest) · [从源码构建](#source-setup) · [开发与测试](#development)
 
 **中文** | [English](README.md) | [日本語](README_JA.md)
 
@@ -16,7 +16,7 @@
 
 ## 项目简介
 
-截图吧是一款免费开源的 Windows 截图工具，截图、标注、OCR、翻译、钉图、录屏和剪贴板历史都在一个程序里，所有功能本地运行。
+截图妈（Jietuma）是一款免费开源的 Windows 截图工具，截图、标注、OCR、翻译、钉图、录屏和剪贴板历史都在一个程序里，所有功能本地运行。本分支独立发布，名称及发布仓库统一配置在 [branding.json](branding.json)，详见[品牌与发布](docs/branding.md)。下文包名中的 `{name}` 指该文件的 `name` 字段。
 
 由 C++（Qt6）实现，图像处理、剪贴板、PP-OCR 引擎等核心由 Rust 实现，支持 Windows x86_64 与 ARM64。早期的 Python（PySide6）实现已归档到 [`archive/python`](https://github.com/1003129155/jietuba/tree/archive/python) 分支，不再更新。
 
@@ -78,12 +78,12 @@
 
 ## 下载与使用
 
-1. 打开 [Releases 下载页](https://github.com/1003129155/jietuba/releases/latest)，按设备下载以 `-x64.zip` 或 `-arm64.zip` 结尾的程序包，无需安装运行环境。
+1. 打开 [Releases 下载页](https://github.com/adoin/jietuba/releases/latest)，按设备下载以 `-x64.zip` 或 `-arm64.zip` 结尾的程序包，无需安装运行环境。
 2. 完整解压后双击其中的 exe 启动。
 
-|  | 完整版 `jietuba_pp-…zip` | 轻量版 `jietuba_lite-…zip` |
+|  | 完整版 `{name}_pp-…zip` | 轻量版 `{name}_lite-…zip` |
 |---|---|---|
-| 包内文件 | `jietuba_pp.exe` 和同级的 `models/` 目录（都要保留） | 单个 `jietuba_lite.exe` |
+| 包内文件 | `{name}_pp.exe` 和同级的 `models/` 目录（都要保留） | 单个 `{name}_lite.exe` |
 | OCR 引擎 | 截图工具 OCR + 自带 PP-OCR，任何 Windows 都能识别 | 默认只用 Windows 11 截图工具的 OCR，可在设置里下载 [PP-OCR 组件包](#ppocr-pack) |
 | 适合 | Windows 10，或想要 OCR 开箱即用 | Windows 11，想要体积小 |
 
@@ -114,7 +114,7 @@ WinGet 发布接入已准备：发布流程会附带清单，公共源尚需提�
 
 ## 代码签名政策
 
-Windows 发布包中的 `jietuba_pp.exe` 和 `jietuba_lite.exe` 都由 GitHub Actions 从本仓库 [cpp/](cpp/) 的 C++ 源码自动构建，并通过 SignPath 签名。
+Windows 发布包中的 `{name}_pp.exe` 和 `{name}_lite.exe` 都由 GitHub Actions 从本仓库 [cpp/](cpp/) 的 C++ 源码自动构建，并可在配置后通过 SignPath 签名。
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
@@ -149,8 +149,8 @@ python -m venv .tools
 发布用的单文件版静态链接 Qt 和 MSVC 运行库，产物只依赖系统 DLL。先用 `.\scripts\build_static_qt.ps1` 从 Qt 官方源码编一份静态 SDK，再构建：
 
 ```powershell
-.\build.cmd -Static          # 轻量版：dist/Release-static/jietuba_lite.exe
-.\build.cmd -Static -Full    # 完整版：dist/Release-static-full/jietuba_pp.exe，内嵌 ONNX Runtime，附默认 PP-OCR 模型
+.\build.cmd -Static          # 轻量版：dist/Release-static/{name}_lite.exe
+.\build.cmd -Static -Full    # 完整版：dist/Release-static-full/{name}_pp.exe，内嵌 ONNX Runtime，附默认 PP-OCR 模型
 ```
 
 ARM64 版在 x64 上交叉编译：先编好 x64 静态 Qt，再运行 `.\scripts\build_static_qt.ps1 -Arch arm64` 和 `.\build.cmd -Static -Arch arm64`，需要 Visual Studio 的 MSVC ARM64 生成工具和 `rustup target add aarch64-pc-windows-msvc`。版本号取自仓库根目录的 `VERSION` 文件。
@@ -174,7 +174,7 @@ ctest --test-dir build\msvc -C Release --output-on-failure -E "_desktop$|_window
 
 [C++ CI](.github/workflows/cpp.yml) 在每个 PR 上编译、运行测试并检查改动代码的行覆盖率；改到 `rust_libs/` 时，[Rust CI](.github/workflows/rust.yml) 运行 Rust 单元测试并复查第三方许可。
 
-发行由 [build.yml](.github/workflows/build.yml) 完成：标签必须是 `release-<VERSION 文件里的版本>`；[lite.yml](.github/workflows/lite.yml) 构建轻量版和完整版（x64 与 ARM64），签名后分别生成 `jietuba_lite-<tag>-<arch>.zip` 和 `jietuba_pp-<tag>-<arch>.zip`。
+发行由 [build.yml](.github/workflows/build.yml) 完成：标签必须是 `release-<VERSION 文件里的版本>`；[lite.yml](.github/workflows/lite.yml) 构建轻量版和完整版（x64 与 ARM64），可选签名后分别生成 `{name}_lite-<tag>-<arch>.zip` 和 `{name}_pp-<tag>-<arch>.zip`。
 
 ---
 

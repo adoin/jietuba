@@ -154,6 +154,10 @@ impl OpenClipboardGuard<'_> {
 
     /// 读取一个按内存块存放的格式；没有、读不出或超过上限时返回 None
     pub fn read(&self, format: u32) -> Option<Vec<u8>> {
+        self.read_bounded(format, MAX_FORMAT_BYTES)
+    }
+
+    pub fn read_bounded(&self, format: u32, limit: usize) -> Option<Vec<u8>> {
         unsafe {
             let hmem = GetClipboardData(format);
             if hmem.is_null() {
@@ -164,7 +168,7 @@ impl OpenClipboardGuard<'_> {
                 return None;
             }
             let size = GlobalSize(hmem);
-            let data = (size > 0 && size <= MAX_FORMAT_BYTES)
+            let data = (size > 0 && size <= limit.min(MAX_FORMAT_BYTES))
                 .then(|| std::slice::from_raw_parts(ptr as *const u8, size).to_vec());
             GlobalUnlock(hmem);
             data
@@ -211,6 +215,11 @@ impl Drop for OpenClipboardGuard<'_> {
 /// 清空剪贴板并写入这些格式；剪贴板打不开时返回 false。
 /// 在界面线程上调用，等别的程序让出剪贴板不宜太久
 pub fn write(formats: &[(u32, Vec<u8>)]) -> bool {
+    // Controller/UI tests run with an isolated data sandbox and explicitly opt
+    // into a no-op writer; backend tests still exercise the real clipboard.
+    if std::env::var_os("JIETUBA_TEST_SANDBOX").is_some() && std::env::var_os("JIETUBA_TEST_CLIPBOARD_FAKE").is_some() {
+        return !formats.is_empty();
+    }
     let Some(window) = ClipboardWindow::new() else {
         return false;
     };

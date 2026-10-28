@@ -10,6 +10,7 @@
 #include "core/game_mode_monitor.h"
 #include "capture/quick_capture_controller.h"
 #include "core/i18n.h"
+#include "core/branding.h"
 #include "core/input_hub.h"
 #include "core/logger.h"
 #include "core/shortcut_manager.h"
@@ -141,7 +142,7 @@ private slots:
         main_app_->setup_pin_tray_updates();
         QVERIFY(main_app_->tray_icon);
         QVERIFY(!main_app_->tray_icon->icon().isNull());
-        QVERIFY(main_app_->tray_icon->toolTip().contains("jietuba"));
+        QVERIFY(main_app_->tray_icon->toolTip().contains(brand_name()));
         auto *menu = main_app_->tray_icon->contextMenu();
         QVERIFY(menu);
         QVERIFY(action_texts(menu).size() >= 4);

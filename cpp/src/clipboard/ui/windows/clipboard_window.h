@@ -92,9 +92,8 @@ public:
     QToolButton *apply_time_filter_btn = nullptr;
     QStringList type_filter_labels;
     int type_filter_index = 0;
-    QToolButton *type_filter_btn = nullptr;
-    QMenu *type_filter_menu = nullptr;
-    QList<QAction *> type_filter_actions;
+    QWidget *type_filter_bar = nullptr;
+    QList<QToolButton *> type_filter_tabs;
     QToolButton *clear_time_filter_btn = nullptr;
     QWidget *bottom_bar = nullptr;
     QToolButton *time_filter_toggle_btn = nullptr;
@@ -123,6 +122,7 @@ public:
     void paste_selected(bool plain_text = false);
     void create_pin_window(qint64 item_id);
     void quick_edit_item(qint64 item_id);
+    void preview_item(qint64 item_id);
     void show_item_context_menu(qint64 item_id, const QPoint &pos);
     // Drags the row, or every marked row when it is marked, out of the window; copy only.
     virtual void start_item_drag(qint64 item_id);
@@ -198,7 +198,6 @@ private:
     void clear_search();
     void update_type_filter_button(int index);
     void refresh_type_filter_button();
-    void show_type_filter_menu();
     void set_type_filter(int index);
     void on_group_switched(std::optional<qint64> group_id);
     void on_sidebar_entered();

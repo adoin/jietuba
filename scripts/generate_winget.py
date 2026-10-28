@@ -9,11 +9,17 @@ import shutil
 import zipfile
 
 
-REPOSITORY = "https://github.com/1003129155/jietuba"
+BRANDING = json.loads((Path(__file__).resolve().parents[1] / "branding.json").read_text(encoding="utf-8"))
+NAME = BRANDING["name"]
+DISPLAY_NAME = BRANDING["display_name"]
+if not re.fullmatch(r"[a-z][a-z0-9]*", NAME) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9 _-]*", DISPLAY_NAME) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", BRANDING["repository"]):
+    raise ValueError("Invalid branding.json")
+OWNER = BRANDING["repository"].split("/", 1)[0]
+REPOSITORY = f"https://github.com/{BRANDING['repository']}"
 SCHEMA = "1.6.0"
 PACKAGES = (
-    ("1003129155.Jietuba", "jietuba_pp", "Jietuba", "jietuba", True),
-    ("1003129155.Jietuba.Lite", "jietuba_lite", "Jietuba Lite", "jietuba-lite", False),
+    (f"{OWNER}.{NAME}", f"{NAME}_pp", DISPLAY_NAME, NAME, True),
+    (f"{OWNER}.{NAME}.Lite", f"{NAME}_lite", f"{DISPLAY_NAME} Lite", f"{NAME}-lite", False),
 )
 
 
@@ -61,8 +67,8 @@ def generate(assets, output, version):
             )
         locale = {
             "PackageLocale": "en-US",
-            "Publisher": "1003129155",
-            "PublisherUrl": "https://github.com/1003129155",
+            "Publisher": OWNER,
+            "PublisherUrl": f"https://github.com/{OWNER}",
             "PublisherSupportUrl": f"{REPOSITORY}/issues",
             "PackageName": name,
             "PackageUrl": REPOSITORY,

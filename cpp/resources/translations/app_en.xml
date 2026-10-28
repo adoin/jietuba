@@ -2496,6 +2496,23 @@ Replace it?</translation>
 <!-- ========== Clipboard Window ========== -->
 <context>
     <name>ClipboardWindow</name>
+    <message><source>Save Changes</source><translation>Save</translation></message>
+    <message><source>Cancel</source><translation>Cancel</translation></message>
+    <message><source>Plugin Settings</source><translation>Plugin Settings</translation></message>
+    <message><source>Could not save plugin settings.</source><translation>Could not save plugin settings.</translation></message>
+    <message><source>A capture filter failed. Matching items will not be saved until it is fixed or disabled.</source><translation>A capture filter failed. Matching items will not be saved until it is fixed or disabled.</translation></message>
+    <message><source>Plugins</source><translation>Plugins</translation></message>
+    <message><source>Plugin action failed.</source><translation>Plugin action failed.</translation></message>
+    <message><source>Copied to clipboard</source><translation>Copied to clipboard</translation></message>
+    <message><source>Formats</source><translation>Formats</translation></message>
+    <message><source>No stored formats</source><translation>No stored formats</translation></message>
+    <message><source>Other</source><translation>Other</translation></message>
+    <message><source>Manage Plugins</source><translation>Manage Plugins</translation></message>
+    <message><source>Uninstall</source><translation>Uninstall</translation></message>
+    <message><source>Uninstall plugin %1?</source><translation>Uninstall plugin %1?</translation></message>
+    <message><source>Could not change plugin state.</source><translation>Could not change plugin state.</translation></message>
+    <message><source>Could not uninstall plugin.</source><translation>Could not uninstall plugin.</translation></message>
+    <message><source>Preview</source><translation>Preview</translation></message>
     <message>
         <source>Clipboard History</source>
         <translation>Clipboard History</translation>
@@ -2994,6 +3011,7 @@ This action cannot be undone.</translation>
 <!-- ========== Clipboard Management Dialog ========== -->
 <context>
     <name>ManageDialog</name>
+    <message><source>Other</source><translation>Other</translation></message>
     <message><source>Please enter a valid link</source><translation>Please enter a valid link</translation></message>
     <message>
         <source>Clipboard Management</source>

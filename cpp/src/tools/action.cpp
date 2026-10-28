@@ -35,18 +35,24 @@ ActionTools::ActionTools(CanvasScene *scene, ToolSettingsManager *config_manager
     : scene(scene), config_manager(config_manager), parent_window(parent_window), export_service(scene),
       save_service(std::make_shared<SaveService>(config_manager ? *config_manager : *get_tool_settings_manager())) {}
 
+void ActionTools::process_output(const QImage &image, const QRectF &rect, const QString &action, std::function<void(QImage)> done) {
+    if (output_processor) output_processor(image, rect, action, std::move(done));
+    else done(image);
+}
+
 void ActionTools::copy_save_and_close(bool close_after) {
     temporarily_exit_editing();
     const auto selection_rect = scene->selection_model->rect();
     remember_last_region(selection_rect);
     const auto image = export_service.export_image(selection_rect);
-    // The image is in hand, so the window can go before the rest.
-    if (parent_window && close_after) parent_window->hide();
     QImage original;
     if (has_annotations(scene->get_drawing_items_in_rect(selection_rect))) original = export_service.export_base_image_only(selection_rect);
-    deliver_screenshot(image, config_manager, true, "capture", {}, original, save_service);
-    log_debug(T("已交给后台复制到剪贴板"), "Action");
-    if (parent_window && close_after) cleanup_and_close();
+    process_output(image, selection_rect, "copy", [this, original, close_after](QImage processed) {
+        if (parent_window && close_after) parent_window->hide();
+        deliver_screenshot(processed, config_manager, true, "capture", {}, original, save_service);
+        log_debug(T("已交给后台复制到剪贴板"), "Action");
+        if (parent_window && close_after) cleanup_and_close();
+    });
 }
 
 void ActionTools::handle_confirm() { copy_save_and_close(); }
@@ -60,15 +66,17 @@ void ActionTools::handle_save(bool close_after) {
     if (selection_rect.isEmpty()) selection_rect = scene->sceneRect();
     const auto image = export_service.export_image(selection_rect);
     const auto base_name = QString("screenshot_%1").arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
-    if (!parent_window || !close_after) {
-        save_image_interactively(parent_window, image, base_name, config_manager, save_service);
-        return;
-    }
-    // The capture ends before the save window opens. That window runs once the click
-    // asking for it has returned, owning nothing of the capture, which is being deleted.
-    cleanup_and_close();
-    QTimer::singleShot(0, qApp, [image, base_name, config = config_manager, service = save_service] {
-        save_image_interactively(nullptr, image, base_name, config, service);
+    process_output(image, selection_rect, "save", [this, base_name, close_after](QImage processed) {
+        if (!parent_window || !close_after) {
+            save_image_interactively(parent_window, processed, base_name, config_manager, save_service);
+            return;
+        }
+        auto *config = config_manager;
+        const auto service = save_service;
+        cleanup_and_close();
+        QTimer::singleShot(0, qApp, [processed, base_name, config, service] {
+            save_image_interactively(nullptr, processed, base_name, config, service);
+        });
     });
 }
 
@@ -97,25 +105,19 @@ void ActionTools::handle_pin(bool close_after) {
     const auto base_image = export_service.export_base_image_only(selection_rect);
     const auto drawing_items = scene->get_drawing_items_in_rect(selection_rect);
     const QPoint position(static_cast<int>(python_round(selection_rect.x())), static_cast<int>(python_round(selection_rect.y())));
-    auto *pin_window = PinManager::instance()->create_pin(base_image, position, config_manager, drawing_items,
-                                                          QPoint(static_cast<int>(selection_rect.x()), static_cast<int>(selection_rect.y())),
-                                                          NumberTool::get_next_number(scene));
-    pin_window->show();
-    log_debug(T("已创建钉图窗口"), "PinAction");
-    log_debug(T("位置: ({pos_x}, {pos_y})", {{"pos_x", position.x()}, {"pos_y", position.y()}}), "PinAction");
-    log_debug(T("底图: {width}x{height}", {{"width", base_image.width()}, {"height", base_image.height()}}), "PinAction");
-    log_debug(T("继承绘制项目: {count} 个", {{"count", static_cast<int>(drawing_items.size())}}), "PinAction");
     const auto result_image = export_service.export_image(selection_rect);
-    // The image is in hand, so the capture window can go early. The pin takes the focus first, so it
-    // never falls back to the previous window in between.
-    if (parent_window && close_after) {
-        pin_window->activateWindow();
-        parent_window->hide();
-    }
     const auto original = has_annotations(drawing_items) ? base_image : QImage();
-    deliver_screenshot(result_image, config_manager, true, "pin", {}, original, save_service);
-    log_debug(T("已交给后台复制到剪贴板"), "PinAction");
-    if (parent_window && close_after) cleanup_and_close();
+    const int next_number = NumberTool::get_next_number(scene);
+    process_output(result_image, selection_rect, "pin", [this, result_image, base_image, original, position, drawing_items, selection_rect, next_number, close_after](QImage processed) {
+        // An image-changing extension has already flattened the result. Otherwise keep vector annotations editable.
+        const bool changed = processed != result_image;
+        auto *pin_window = PinManager::instance()->create_pin(changed ? processed : base_image, position, config_manager,
+            changed ? QList<QGraphicsItem *>{} : drawing_items, QPoint(static_cast<int>(selection_rect.x()), static_cast<int>(selection_rect.y())), next_number);
+        pin_window->show();
+        if (parent_window && close_after) { pin_window->activateWindow(); parent_window->hide(); }
+        deliver_screenshot(processed, config_manager, true, "pin", {}, original, save_service);
+        if (parent_window && close_after) cleanup_and_close();
+    });
 }
 
 bool ActionTools::handle_capture_action(const QString &action) {
@@ -136,13 +138,11 @@ bool ActionTools::handle_capture_action(const QString &action) {
         const auto rect = scene->selection_model->rect();
         remember_last_region(rect);
         const auto image = export_service.export_image(rect);
-        const auto [success, path] = save_service->save_qimage(image, config_manager->get_screenshot_save_path(), "", config_manager->get_screenshot_format());
-        if (success) {
-            save_original_beside(rect, path.value_or(QString()));
-            cleanup_and_close();
-        } else {
-            show_warning_dialog(parent_window, action_tr("Save Failed"), path.value_or(QString()));
-        }
+        process_output(image, rect, "quick_save", [this, rect](QImage processed) {
+            const auto [success, path] = save_service->save_qimage(processed, config_manager->get_screenshot_save_path(), "", config_manager->get_screenshot_format());
+            if (success) { save_original_beside(rect, path.value_or(QString())); cleanup_and_close(); }
+            else show_warning_dialog(parent_window, action_tr("Save Failed"), path.value_or(QString()));
+        });
     } else {
         return false;
     }
@@ -190,6 +190,12 @@ void ActionTools::handle_scan_code() {
     cleanup_and_close();
     const bool copy_single = config_manager && config_manager->get_barcode_copy_single_enabled();
     show_barcode_result(image, copy_single);
+}
+
+QImage ActionTools::export_selection_for_plugin() {
+    if (!scene || !scene->selection_model->is_confirmed()) return {};
+    temporarily_exit_editing();
+    return export_service.export_image(scene->selection_model->rect());
 }
 
 QImage ActionTools::selection_base_image() {

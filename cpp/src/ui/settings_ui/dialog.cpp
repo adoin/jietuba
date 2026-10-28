@@ -1,4 +1,5 @@
 #include "ui/settings_ui/dialog.h"
+#include "core/branding.h"
 #include "clipboard/ui/theme/themes.h"
 #include "core/i18n.h"
 #include "core/logger.h"
@@ -172,7 +173,7 @@ SettingsDialog::SettingsDialog(ToolSettingsManager *manager, const QString &hotk
     : FrostedFramelessDialog(parent), config_manager(manager), current_hotkey(hotkey) {
     // The custom title bar comes before setWindowTitle so it receives the change.
     setup_titlebar();
-    setWindowTitle("jietuba");
+    setWindowTitle(brand_name());
     fit_to_screen();
     // The same font stack as cards and navigation, so text styles without a family match.
     QFont window_font;
@@ -240,7 +241,7 @@ void SettingsDialog::setup_titlebar() {
     title_bar->hBoxLayout->setContentsMargins(0, 0, 0, 0);
     if (title_bar->maxBtn) title_bar->maxBtn->hide();
     title_bar->setDoubleClickEnabled(false);
-    const QString icon_path = ResourceManager::get_resource_path(QString::fromUtf8("svg/托盘.svg"));
+    const QString icon_path = QStringLiteral(":/app.ico");
     if (QFileInfo::exists(icon_path)) setWindowIcon(QIcon(icon_path));
 }
 
@@ -272,10 +273,10 @@ void SettingsDialog::setup_ui() {
     auto *logo_icon_lbl = new QLabel;
     logo_icon_lbl->setFixedSize(dialog_scaled(26), dialog_scaled(26));
     logo_icon_lbl->setAlignment(Qt::AlignCenter);
-    const QString icon_path = ResourceManager::get_resource_path(QString::fromUtf8("svg/托盘.svg"));
+    const QString icon_path = QStringLiteral(":/app.ico");
     if (QFileInfo::exists(icon_path)) logo_icon_lbl->setPixmap(QIcon(icon_path).pixmap(dialog_scaled(26), dialog_scaled(26)));
     logo_layout->addWidget(logo_icon_lbl, 0, Qt::AlignVCenter);
-    auto *app_name_lbl = new BodyLabel(tr_text("jietuba"));
+    auto *app_name_lbl = new BodyLabel(brand_name());
     apply_theme_text_style(app_name_lbl, 14, true);
     logo_layout->addWidget(app_name_lbl, 1, Qt::AlignVCenter);
     left_v->addWidget(logo_area);
@@ -1229,7 +1230,7 @@ void SettingsDialog::open_view(const ViewState &state) {
 }
 
 void SettingsDialog::apply_taskbar_icon() {
-    const QString icon_path = ResourceManager::get_resource_path(QString::fromUtf8("svg/托盘.svg"));
+    const QString icon_path = QStringLiteral(":/app.ico");
     if (!QFileInfo::exists(icon_path)) return;
     QPixmap pix(32, 32);
     pix.fill(Qt::transparent);

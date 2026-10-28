@@ -1,5 +1,6 @@
 #include "ui/welcome/base_page.h"
 #include "core/i18n.h"
+#include "core/branding.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
 #include <QHBoxLayout>
@@ -17,9 +18,7 @@ WelcomeTheme welcome_theme() {
 }
 
 QString brand_text(const QString &text) {
-    QString result = text;
-    for (const char *legacy_name : {"截图吧", "JieTuBa", "JieTuba", "JIETUBA"}) result.replace(QString::fromUtf8(legacy_name), PRODUCT_NAME);
-    return result;
+    return brand_display(text);
 }
 
 QLabel *set_welcome_label_style(QLabel *label, const QString &role, int font_size, int weight, const QString &extra) {

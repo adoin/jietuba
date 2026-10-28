@@ -46,6 +46,7 @@ struct ClipboardItem {
     std::optional<QString> image_id;
     std::optional<QString> thumbnail;
     bool is_pinned = false;
+    bool has_metadata = false;
     qint64 paste_count = 0;
     std::optional<QString> source_app;
     QString sub_kind;

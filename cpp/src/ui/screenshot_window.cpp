@@ -9,12 +9,14 @@
 #include "capture/capture_service.h"
 #include "capture/system_cursor.h"
 #include "core/i18n.h"
+#include "core/clipboard_utils.h"
 #include "core/last_capture_region.h"
 #include "core/logger.h"
 #include "core/platform_utils.h"
 #include "core/qt_utils.h"
 #include "core/ui_scale.h"
 #include "pin/pin_manager.h"
+#include "plugins/extension_host.h"
 #include "settings/tool_settings.h"
 #include "stitch/scroll_window.h"
 #include "tools/controller.h"
@@ -35,6 +37,7 @@
 #include "ui/selection_overlay.h"
 #include "ui/toolbar.h"
 #include <QApplication>
+#include <QClipboard>
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QGraphicsPixmapItem>
@@ -44,7 +47,9 @@
 #include <QMouseEvent>
 #include <QScreen>
 #include <QTimer>
+#include <QUuid>
 #include <QWindow>
+#include <algorithm>
 
 namespace jietuba {
 namespace {
@@ -273,12 +278,24 @@ ScreenshotWindow::ScreenshotWindow(ToolSettingsManager *config, const QImage &pr
 
     // 4. Toolbar, shown after the selection is confirmed.
     toolbar = new Toolbar(this);
+    toolbar->add_plugin_buttons(plugins::toolbar_contributions("screenshot"));
     toolbar->hide();
     const double t3 = clock.nsecsElapsed() / 1e6;
     timings.append(timing_entry("Toolbar", t3 - t2));
 
     // 5. Toolbar button logic.
     action_handler = std::make_unique<ActionTools>(scene, config_manager, this);
+    plugin_session_id_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    plugin_session_ = new plugins::ExtensionSession(qApp);
+    plugin_session_->hook("screenshot.started", {{"kind", "none"}}, plugin_context());
+    action_handler->output_processor = [this](const QImage &image, const QRectF &rect, const QString &action, std::function<void(QImage)> done) {
+        prepare_plugin_output(image, rect, action, [this, rect, action, done = std::move(done)](QImage processed) {
+            auto payload = plugins::has_extension_hooks("screenshot.exported") ? plugins::image_payload(processed) : QJsonObject{{"kind", "none"}};
+            if (payload.isEmpty()) payload = {{"kind", "none"}};
+            notify_plugin_export(payload, rect, action);
+            done(std::move(processed));
+        });
+    };
 
     // 6. The mask over the whole window, above the view.
     mask_overlay = new MaskOverlayWidget(this, scene->selection_model);
@@ -383,6 +400,12 @@ void ScreenshotWindow::teardown_session() {
     if (!session_active_) return;
     session_active_ = false;
     is_closing = true;
+    if (plugin_session_) {
+        if (!plugin_exported_) plugin_session_->hook("screenshot.cancelled", {{"kind", "none"}}, plugin_context());
+        plugin_session_->hook("screenshot.ended", {{"kind", "none"}}, plugin_context({}, plugin_exported_ ? "exported" : "cancelled"));
+        plugin_session_->finish();
+        plugin_session_ = nullptr;
+    }
     if (initial_selection_gate_) initial_selection_gate_->cancel();
     hide();
     try {
@@ -461,6 +484,7 @@ void ScreenshotWindow::replace_background(const QImage &image) {
 }
 
 void ScreenshotWindow::connect_toolbar_signals() {
+    connect(toolbar, &Toolbar::plugin_clicked, this, &ScreenshotWindow::run_plugin_toolbar_action);
     connect(toolbar, &Toolbar::tool_changed, this, &ScreenshotWindow::on_tool_changed);
     connect(toolbar, &Toolbar::color_changed, this, &ScreenshotWindow::on_color_changed);
     connect(toolbar, &Toolbar::stroke_width_changed, this, &ScreenshotWindow::on_stroke_width_changed);
@@ -556,6 +580,7 @@ void ScreenshotWindow::on_selection_dragging_changed(bool is_dragging) {
 
 void ScreenshotWindow::on_selection_confirmed() {
     if (is_closing) return;
+    if (plugin_session_) plugin_session_->hook("screenshot.selection_confirmed", {{"kind", "none"}}, plugin_context(scene->selection_model->rect()));
     toolbar->show();
     // Raised only, not activated.
     toolbar->raise();
@@ -564,6 +589,70 @@ void ScreenshotWindow::on_selection_confirmed() {
     // The capture window keeps focus.
     activateWindow();
     setFocus();
+}
+
+QJsonObject ScreenshotWindow::plugin_context(const QRectF &rect, const QString &action) const {
+    return {{"session_id", plugin_session_id_}, {"action", action},
+            {"selection", QJsonObject{{"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}}}};
+}
+
+void ScreenshotWindow::notify_plugin_export(const QJsonObject &payload, const QRectF &rect, const QString &action) {
+    plugin_exported_ = true;
+    if (plugin_session_ && !payload.isEmpty()) plugin_session_->hook("screenshot.exported", payload, plugin_context(rect, action));
+}
+
+void ScreenshotWindow::prepare_plugin_output(const QImage &image, const QRectF &rect, const QString &action, std::function<void(QImage)> done) {
+    if (plugin_processing_ || image.isNull() || !plugin_session_) return;
+    if (!plugins::has_extension_hooks("screenshot.before_export")) { done(image); return; }
+    const auto payload = plugins::image_payload(image);
+    if (payload.isEmpty()) { show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow")); return; }
+    plugin_processing_ = true;
+    toolbar->setEnabled(false);
+    view->setEnabled(false);
+    plugin_session_->hook("screenshot.before_export", payload, plugin_context(rect, action), this,
+        [this, image, payload, done = std::move(done)](plugins::ExtensionResult result) {
+            if (!session_active_ || is_closing) return;
+            plugin_processing_ = false;
+            if (toolbar) toolbar->setEnabled(true);
+            if (view) view->setEnabled(true);
+            const auto processed = result.ok ? (result.payload == payload ? image : plugins::payload_image(result.payload)) : QImage();
+            if (processed.isNull()) { show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow") + "\n" + result.error); return; }
+            done(processed);
+        });
+}
+
+void ScreenshotWindow::run_plugin_toolbar_action(const QString &plugin, const QString &id) {
+    if (plugin_processing_ || !scene || !scene->selection_model->is_confirmed() || !action_handler || !plugin_session_) return;
+    const auto contributions = plugins::toolbar_contributions("screenshot");
+    const auto found = std::find_if(contributions.cbegin(), contributions.cend(), [&](const auto &item) { return item.plugin == plugin && item.id == id; });
+    if (found == contributions.cend()) return;
+    const auto steps = found->pipeline;
+    const QRectF rect = scene->selection_model->rect();
+    const auto image = action_handler->export_selection_for_plugin();
+    const QString action = "plugin." + plugin + "." + id;
+    prepare_plugin_output(image, rect, action, [this, rect, action, steps](QImage prepared) {
+        const auto payload = plugins::image_payload(prepared);
+        if (payload.isEmpty()) { show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow")); return; }
+        plugin_processing_ = true;
+        toolbar->setEnabled(false);
+        view->setEnabled(false);
+        plugin_session_->pipeline(steps, payload, plugin_context(rect, action), this, [this, rect, action](plugins::ExtensionResult result) {
+            if (!session_active_ || is_closing) return;
+            plugin_processing_ = false;
+            if (toolbar) toolbar->setEnabled(true);
+            if (view) view->setEnabled(true);
+            if (!result.ok || (result.payload.value("kind").toString() != "image" && result.payload.value("kind").toString() != "text")) {
+                show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow") + "\n" + result.error);
+                return;
+            }
+            notify_plugin_export(result.payload, rect, action);
+            if (result.payload.value("kind").toString() == "image") {
+                const auto output = plugins::payload_image(result.payload);
+                deliver_screenshot(output, config_manager, true, "capture");
+            } else QApplication::clipboard()->setText(result.payload.value("data").toString());
+            cleanup_and_close();
+        });
+    });
 }
 
 void ScreenshotWindow::showEvent(QShowEvent *event) {

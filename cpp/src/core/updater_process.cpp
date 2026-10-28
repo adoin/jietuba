@@ -1,4 +1,5 @@
 #include "core/updater_process.h"
+#include "core/branding.h"
 #include "core/logger.h"
 #include "core/update_cache.h"
 #include <QCoreApplication>
@@ -13,7 +14,7 @@ namespace jietuba {
 namespace {
 constexpr int MAX_LINE = 65536;
 // Built from the reference updater crate and embedded by CMake when JIETUBA_UPDATES is on.
-const QString BUNDLED_HELPER = QStringLiteral(":/updater/jietuba_updater.exe");
+const QString BUNDLED_HELPER = QStringLiteral(":/updater/" JTM_NAME "_updater.exe");
 
 QString &helper_source_override() {
     static QString path;
@@ -32,7 +33,7 @@ QString helper_path() {
     if (!QFileInfo::exists(source)) throw std::runtime_error("This build has no updater helper; configure with -DJIETUBA_UPDATES=ON");
     const QString root = QDir(update_cache::cache_subdirectory("helpers")).filePath(QUuid::createUuid().toString(QUuid::Id128));
     if (!QDir().mkdir(root)) throw std::runtime_error("Cannot create " + root.toStdString());
-    const QString target = QDir(root).filePath("jietuba_updater.exe");
+    const QString target = QDir(root).filePath(QStringLiteral(JTM_NAME "_updater.exe"));
     // A copy out of the resource is read-only, and cache cleanup must be able to delete it.
     if (!QFile::copy(source, target) || !QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner)) {
         update_cache::remove_directory(root);

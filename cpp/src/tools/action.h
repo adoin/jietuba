@@ -4,6 +4,7 @@
 #include <QRectF>
 #include <QWidget>
 #include <memory>
+#include <functional>
 
 class QGraphicsItem;
 
@@ -40,6 +41,8 @@ public:
     void handle_text_recognize();
     // Lists QR codes and barcodes in the selection after closing the capture.
     void handle_scan_code();
+    // A toolbar extension uses the same clean composite as built-in export actions.
+    QImage export_selection_for_plugin();
     // The save window, or the system Save As dialog when the setting asks for it.
     static void save_image_interactively(QWidget *parent, const QImage &image, const QString &base_name, ToolSettingsManager *config,
                                          const std::shared_ptr<SaveService> &service);
@@ -48,7 +51,10 @@ public:
     QPointer<QWidget> parent_window;
     ExportService export_service;
     std::shared_ptr<SaveService> save_service;
+    // The capture host can run asynchronous export extensions before delivery.
+    std::function<void(const QImage &, const QRectF &, const QString &, std::function<void(QImage)>)> output_processor;
 private:
+    void process_output(const QImage &image, const QRectF &rect, const QString &action, std::function<void(QImage)> done);
     // Export -> clipboard -> auto save -> close.
     void copy_save_and_close(bool close_after = true);
     static bool has_annotations(const QList<QGraphicsItem *> &drawing_items);

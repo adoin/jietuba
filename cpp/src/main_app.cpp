@@ -1,4 +1,5 @@
 #include "main_app.h"
+#include "core/branding.h"
 #include "clipboard/core/manager.h"
 #include "clipboard/ui/dialogs/manage_dialog.h"
 #include "clipboard/ui/windows/clipboard_window.h"
@@ -70,9 +71,9 @@ QIcon create_fallback_app_icon() {
 }
 
 QIcon create_app_icon() {
-    const auto icon_path = ResourceManager::get_resource_path(QString::fromUtf8("svg/托盘.svg"));
+    const QString icon_path = QStringLiteral(":/app.ico");
     if (QFile::exists(icon_path)) {
-        // Rendered before checking: a damaged SVG gives an empty pixmap, a fully
+        // Rendered before checking: a damaged icon gives an empty pixmap, a fully
         // transparent tray icon as unusable as a missing one.
         const auto icon_pixmap = QIcon(icon_path).pixmap(64, 64);
         if (!icon_pixmap.isNull()) {
@@ -253,7 +254,7 @@ void MainApp::setup_pin_tray_updates() {
 
 void MainApp::update_tray_menu() {
     if (!tray_icon) return;
-    tray_icon->setToolTip(tr_text("jietuba - Click to screenshot"));
+    tray_icon->setToolTip(brand_display(tr_text("jietuba - Click to screenshot")));
     auto *old_menu = tray_icon->contextMenu();
     tray_icon->setContextMenu(create_tray_menu(this));
     // QSystemTrayIcon does not own its menu.
@@ -348,7 +349,7 @@ void MainApp::setup_tray() {
     if (!QSystemTrayIcon::isSystemTrayAvailable()) show_error_dialog(nullptr, tr_text("Error"), tr_text("System tray not available"));
     tray_icon = new QSystemTrayIcon(this);
     tray_icon->setIcon(create_app_icon());
-    tray_icon->setToolTip(tr_text("jietuba - Click to screenshot"));
+    tray_icon->setToolTip(brand_display(tr_text("jietuba - Click to screenshot")));
     tray_icon->setContextMenu(create_tray_menu(this));
     connect(tray_icon, &QSystemTrayIcon::activated, this, &MainApp::on_tray_activated);
     tray_icon->show();

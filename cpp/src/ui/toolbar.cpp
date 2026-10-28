@@ -1,4 +1,5 @@
 #include "ui/toolbar.h"
+#include "plugins/extension_host.h"
 #include "canvas/canvas_host.h"
 #include "canvas/view.h"
 #include "core/i18n.h"
@@ -25,6 +26,7 @@
 #include "ui/watermark_input_dialog.h"
 #include "ui/watermark_settings_panel.h"
 #include <QApplication>
+#include <QFileInfo>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
@@ -268,9 +270,27 @@ void Toolbar::apply_button_sizes() {
     const int icon_size = scaled(BASE_ICON);
     for (auto it = icon_paths_.begin(); it != icon_paths_.end(); ++it) {
         auto *button = buttons_[it.key()];
-        button->setIcon(cached_icon(it.value(), icon_size));
+        button->setIcon(QFileInfo(it.value()).isAbsolute() ? QIcon(it.value()) : cached_icon(it.value(), icon_size));
         button->setIconSize(QSize(icon_size, icon_size));
     }
+}
+
+void Toolbar::add_plugin_buttons(const QList<plugins::ToolbarContribution> &contributions) {
+    for (const auto &item : contributions) {
+        const QString key = "plugin." + item.plugin + "." + item.id;
+        if (buttons_.contains(key)) continue;
+        const QString icon = item.icon.isEmpty() ? QString::fromUtf8("svg/工具栏.svg") : item.icon;
+        auto *button = add_button(key, icon, "", BASE_WIDE_WIDTH, [this, item] { emit plugin_clicked(item.plugin, item.id); });
+        button->setObjectName(key);
+        button->setToolTip(item.name);
+        // Plugin names are already localized and must not be passed to Qt's catalog.
+        tooltip_sources_.pop_back();
+        plugin_button_names_.insert(key, item.name);
+        layout_profile.order.insert(std::max<qsizetype>(0, layout_profile.order.indexOf("confirm")), key);
+        layout_profile.default_more.insert(key);
+    }
+    apply_button_sizes();
+    reload_layout();
 }
 
 QPushButton *Toolbar::add_tool_button(const QString &tool_id, const QString &icon, const char *tooltip, int width) {
@@ -395,7 +415,7 @@ void Toolbar::open_layout_dialog() {
     auto *host = host_window();
     QMap<QString, QIcon> icons;
     for (const auto &key : button_order_) icons[key] = buttons_[key]->icon();
-    ToolbarLayoutDialog dialog(toolbar_layout::load_layout(*get_tool_settings_manager(), layout_profile), icons, host, layout_profile);
+    ToolbarLayoutDialog dialog(toolbar_layout::load_layout(*get_tool_settings_manager(), layout_profile), icons, host, layout_profile, plugin_button_names_);
     // The capture window spans the virtual desktop, so its centre may be on another
     // screen; centre on the toolbar's screen instead.
     auto *screen = QApplication::screenAt(mapToGlobal(QPoint(0, 0)));

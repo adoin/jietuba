@@ -1,16 +1,19 @@
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use rusqlite::types::Value;
+use rusqlite::functions::FunctionFlags;
 use crate::group_kind::{self, FilterRule};
 use crate::text_kind;
 use crate::types::{PyClipboardItem, PyPaginatedResult, PyGroup};
 use std::path::{Path, PathBuf};
+use std::io::Read;
 
 // 压缩阈值：超过 100KB 的 data 用 zstd 压缩
 const COMPRESS_THRESHOLD: usize = 100 * 1024;
 
 /// 读一条记录要的列，顺序与 item_from_row 对应
 const ITEM_COLUMNS: &str = "id, title, content, html_content, content_type, image_id, thumbnail, is_pinned, \
-                            paste_count, source_app, char_count, created_at, updated_at, COALESCE(sub_kind, '')";
+                            paste_count, source_app, char_count, created_at, updated_at, COALESCE(sub_kind, ''), \
+                            EXISTS(SELECT 1 FROM clipboard_metadata m WHERE m.item_id = clipboard.id)";
 
 /// 要写进库的文本子类型：调用方给了（带取色标记）就用，文本没给就按内容判
 fn sub_kind_of(item: &PyClipboardItem) -> String {
@@ -47,6 +50,7 @@ fn item_from_row(row: &rusqlite::Row) -> rusqlite::Result<PyClipboardItem> {
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
         sub_kind: row.get(13)?,
+        has_metadata: row.get::<_, i64>(14)? != 0,
     })
 }
 
@@ -115,6 +119,9 @@ impl Database {
     pub fn new(db_path: &str) -> Result<Self, String> {
         let conn = Connection::open(db_path)
             .map_err(|e| format!("打开数据库失败: {}", e))?;
+        conn.create_scalar_function("jietuba_casefold", 1, FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC, |ctx| {
+            Ok(ctx.get::<String>(0)?.to_lowercase())
+        }).map_err(|e| format!("初始化搜索失败: {e}"))?;
         let is_new: bool = conn.query_row("SELECT COUNT(*) = 0 FROM sqlite_master", [], |row| row.get(0))
             .map_err(|e| format!("打开数据库失败: {}", e))?;
 
@@ -156,6 +163,10 @@ impl Database {
             [],
         ).map_err(|e| format!("创建 clipboard_formats 表失败: {}", e))?;
         add_column_if_missing(&conn, "clipboard_formats", "compressed", "INTEGER NOT NULL DEFAULT 0")?;
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS clipboard_metadata (item_id INTEGER NOT NULL, plugin_id TEXT NOT NULL, data TEXT NOT NULL, \
+             PRIMARY KEY(item_id, plugin_id), FOREIGN KEY(item_id) REFERENCES clipboard(id) ON DELETE CASCADE)", [],
+        ).map_err(|e| format!("创建插件元数据表失败: {e}"))?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS groups (
@@ -368,9 +379,10 @@ impl Database {
         if let Some(ref s) = search {
             if !s.trim().is_empty() {
                 // 关键词按字面匹配：% 和 _ 在 LIKE 里是通配符，要转义
-                let escaped = s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
-                where_clauses.push("content LIKE ? ESCAPE '\\'".to_string());
-                params_vec.push(Value::from(format!("%{}%", escaped)));
+                let escaped = s.to_lowercase().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+                where_clauses.push("(jietuba_casefold(content) LIKE ? ESCAPE '\\' OR jietuba_casefold(COALESCE(title,'')) LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM clipboard_metadata m, json_tree(CASE WHEN json_valid(m.data) THEN m.data ELSE '{}' END) j WHERE m.item_id = clipboard.id AND j.type = 'text' AND jietuba_casefold(COALESCE(CAST(j.value AS TEXT),'')) LIKE ? ESCAPE '\\'))".to_string());
+                let pattern = format!("%{}%", escaped);
+                for _ in 0..3 { params_vec.push(Value::from(pattern.clone())); }
             }
         }
 
@@ -413,11 +425,11 @@ impl Database {
     /// 出现过的来源应用及条数，按条数从多到少；本程序的几种 exe 合并成 OWN_APP
     pub fn source_apps(&self) -> Result<Vec<(String, i64)>, String> {
         let mut stmt = self.conn.prepare(
-            "SELECT CASE WHEN source_app LIKE 'jietuba%' THEN ?1 ELSE source_app END AS app, COUNT(*) AS n
+            "SELECT CASE WHEN source_app LIKE 'jietuba%' OR source_app LIKE ?2 THEN ?1 ELSE source_app END AS app, COUNT(*) AS n
              FROM clipboard WHERE source_app IS NOT NULL AND source_app != ''
              GROUP BY app COLLATE NOCASE ORDER BY n DESC, app COLLATE NOCASE",
         ).map_err(|e| format!("查询来源失败: {}", e))?;
-        stmt.query_map(params![group_kind::OWN_APP], |row| Ok((row.get(0)?, row.get(1)?)))
+        stmt.query_map(params![group_kind::OWN_APP, format!("{}%", group_kind::own_app_prefix())], |row| Ok((row.get(0)?, row.get(1)?)))
             .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
             .map_err(|e| format!("查询来源失败: {}", e))
     }
@@ -677,6 +689,31 @@ impl Database {
             .map_err(|e| format!("查询失败: {}", e))?;
 
         Ok(PyPaginatedResult::new(total_count, items, offset, limit))
+    }
+
+    pub fn query_group_filtered(&self, group_id: i64, offset: i64, limit: i64, search: Option<String>, kind: Option<String>,
+                                start: Option<i64>, end: Option<i64>) -> Result<PyPaginatedResult, String> {
+        let filter = FilterRule { kind, app: None };
+        filter.check()?;
+        let mut clauses = vec!["group_id = ?".to_string()];
+        let mut values = vec![Value::from(group_id)];
+        if let Some(text) = search.filter(|s| !s.trim().is_empty()) {
+            let escaped = text.to_lowercase().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            clauses.push("(jietuba_casefold(content) LIKE ? ESCAPE '\\' OR jietuba_casefold(COALESCE(title,'')) LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM clipboard_metadata m, json_tree(CASE WHEN json_valid(m.data) THEN m.data ELSE '{}' END) j WHERE m.item_id=clipboard.id AND j.type='text' AND jietuba_casefold(COALESCE(CAST(j.value AS TEXT),'')) LIKE ? ESCAPE '\\'))".into());
+            for _ in 0..3 { values.push(Value::from(format!("%{escaped}%"))); }
+        }
+        let (conditions, parameters) = filter.sql_conditions();
+        clauses.extend(conditions.into_iter().map(|condition| format!("({condition})")));
+        values.extend(parameters);
+        if let Some(value) = start { clauses.push("created_at >= ?".into()); values.push(Value::from(value)); }
+        if let Some(value) = end { clauses.push("created_at < ?".into()); values.push(Value::from(value)); }
+        let where_clause = clauses.join(" AND ");
+        let total: i64 = self.conn.query_row(&format!("SELECT COUNT(*) FROM clipboard WHERE {where_clause}"), params_from_iter(values.iter()), |r| r.get(0)).map_err(|e| e.to_string())?;
+        values.push(Value::from(limit)); values.push(Value::from(offset));
+        let mut stmt = self.conn.prepare(&format!("SELECT {ITEM_COLUMNS} FROM clipboard WHERE {where_clause} ORDER BY is_pinned DESC, item_order ASC LIMIT ? OFFSET ?")).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params_from_iter(values.iter()), item_from_row).map_err(|e| e.to_string())?;
+        let items = rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?;
+        Ok(PyPaginatedResult::new(total, items, offset, limit))
     }
 
     /// 增加粘贴次数，返回新的次数；记录不存在时返回 0
@@ -958,6 +995,58 @@ impl Database {
             .collect()
     }
 
+    /// Read one named format without loading unrelated, potentially large image data.
+    /// Both stored and decompressed sizes are bounded before returning it to a plugin.
+    pub fn get_format_bounded(&self, event_id: i64, name: &str, limit: usize) -> Result<Option<Vec<u8>>, String> {
+        let row: Option<(Vec<u8>, bool)> = self.conn.query_row(
+            "SELECT data, compressed FROM clipboard_formats WHERE event_id = ?1 AND format_name = ?2 COLLATE NOCASE AND length(data) <= ?3 LIMIT 1",
+            params![event_id, name, limit as i64],
+            |row| Ok((row.get::<_, Option<Vec<u8>>>(0)?.unwrap_or_default(), row.get(1)?)),
+        ).optional().map_err(|e| format!("查询格式失败: {e}"))?;
+        let Some((data, compressed)) = row else { return Ok(None) };
+        if !compressed { return Ok(Some(data)); }
+        let decoder = zstd::stream::read::Decoder::new(data.as_slice()).map_err(|e| format!("解压格式失败: {e}"))?;
+        let mut decoded = Vec::new();
+        decoder.take(limit as u64 + 1).read_to_end(&mut decoded).map_err(|e| format!("解压格式失败: {e}"))?;
+        if decoded.len() > limit { return Ok(None); }
+        Ok(Some(decoded))
+    }
+
+    pub fn format_names(&self, event_id: i64) -> Result<Vec<String>, String> {
+        let mut stmt = self.conn.prepare("SELECT format_name FROM clipboard_formats WHERE event_id = ?1 ORDER BY format_id")
+            .map_err(|e| format!("查询格式失败: {e}"))?;
+        let rows = stmt.query_map(params![event_id], |row| row.get(0)).map_err(|e| format!("查询格式失败: {e}"))?;
+        rows.collect::<rusqlite::Result<Vec<String>>>().map_err(|e| format!("查询格式失败: {e}"))
+    }
+
+    pub fn plugin_metadata(&self, item_id: i64, plugin_id: &str) -> Result<Option<String>, String> {
+        self.conn.query_row("SELECT data FROM clipboard_metadata WHERE item_id=?1 AND plugin_id=?2", params![item_id, plugin_id], |r| r.get(0))
+            .optional().map_err(|e| format!("读取插件元数据失败: {e}"))
+    }
+
+    pub fn set_plugin_metadata(&self, item_id: i64, plugin_id: &str, data: &str) -> Result<bool, String> {
+        if plugin_id.is_empty() || plugin_id.len() > 64 || (!plugin_id.as_bytes()[0].is_ascii_lowercase() && !plugin_id.as_bytes()[0].is_ascii_digit()) ||
+            !plugin_id.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"._-".contains(&c)) || data.len() > 65536 {
+            return Err("插件元数据无效".into());
+        }
+        let value: serde_json::Value = serde_json::from_str(data).map_err(|e| format!("插件元数据无效: {e}"))?;
+        let object = value.as_object().ok_or("插件元数据必须是对象")?;
+        let exists: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM clipboard WHERE id=?1)", params![item_id], |r| r.get(0)).map_err(|e| e.to_string())?;
+        if !exists { return Ok(false); }
+        if object.is_empty() {
+            self.conn.execute("DELETE FROM clipboard_metadata WHERE item_id=?1 AND plugin_id=?2", params![item_id, plugin_id]).map_err(|e| e.to_string())?;
+        } else {
+            self.conn.execute("INSERT INTO clipboard_metadata(item_id,plugin_id,data) VALUES(?1,?2,?3) ON CONFLICT(item_id,plugin_id) DO UPDATE SET data=excluded.data", params![item_id, plugin_id, data]).map_err(|e| e.to_string())?;
+        }
+        Ok(true)
+    }
+
+    pub fn metadata_matches(&self, item_id: i64, text: &str) -> Result<bool, String> {
+        let escaped = text.to_lowercase().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM clipboard_metadata m, json_tree(CASE WHEN json_valid(m.data) THEN m.data ELSE '{}' END) j WHERE m.item_id=?1 AND j.type='text' AND jietuba_casefold(COALESCE(CAST(j.value AS TEXT),'')) LIKE ?2 ESCAPE '\\')",
+                            params![item_id, format!("%{escaped}%")], |r| r.get(0)).map_err(|e| e.to_string())
+    }
+
     /// 清理超出限制的旧记录
     ///
     /// 保留置顶项和分组内容，只删除非置顶、非分组的旧记录
@@ -1012,6 +1101,52 @@ mod update_item_tests {
         let raw: Vec<u8> = format!("{}\0", text).encode_utf16().flat_map(u16::to_le_bytes).collect();
         db.insert_formats(id, &[(13, "CF_UNICODETEXT".to_string(), raw)]).unwrap();
         (db, id)
+    }
+
+    #[test]
+    fn named_format_is_bounded_before_and_after_decompression() {
+        let (db, id) = db_with_captured_text("text");
+        let large = vec![b'a'; 200_000];
+        db.insert_formats(id, &[(50000, "Rich Text Format".to_string(), large.clone())]).unwrap();
+        assert_eq!(db.get_format_bounded(id, "rich text format", 200_000).unwrap(), Some(large));
+        assert_eq!(db.get_format_bounded(id, "Rich Text Format", 100_000).unwrap(), None);
+        assert_eq!(db.get_format_bounded(id, "missing", 200_000).unwrap(), None);
+        assert!(db.get_format_bounded(id, "CF_UNICODETEXT", 1).unwrap().is_none());
+    }
+
+    #[test]
+    fn plugin_metadata_is_searchable_and_deleted_with_its_item() {
+        let (db, id) = db_with_captured_text("original");
+        assert!(db.set_plugin_metadata(id, "notes-tags", r#"{"note":"project alpha","tags":"work, urgent"}"#).unwrap());
+        assert!(db.get_item_by_id(id).unwrap().unwrap().has_metadata);
+        assert!(db.metadata_matches(id, "ALPHA").unwrap());
+        assert!(db.metadata_matches(id, "urgent").unwrap());
+        assert!(!db.metadata_matches(id, "missing").unwrap());
+        assert_eq!(db.query_items(0, 10, Some("urgent".into()), &crate::group_kind::FilterRule::default(), None, None).unwrap().items.len(), 1);
+        assert!(!db.set_plugin_metadata(9999, "notes-tags", "{}").unwrap());
+        assert!(db.set_plugin_metadata(id, "../bad", "{}").is_err());
+        db.delete_item(id).unwrap();
+        assert_eq!(db.plugin_metadata(id, "notes-tags").unwrap(), None);
+    }
+
+    #[test]
+    fn group_filter_searches_unicode_and_metadata_before_paging() {
+        let db = Database::new(":memory:").unwrap();
+        let group = db.create_group("g", None, None, 0, None).unwrap();
+        for index in 0..80 {
+            let id = db.insert_item(&PyClipboardItem::new(0, format!("ordinary {index}"), "text".into())).unwrap();
+            db.move_to_group(id, Some(group)).unwrap();
+        }
+        let id = db.insert_item(&PyClipboardItem::new(0, "École".into(), "text".into())).unwrap();
+        db.move_to_group(id, Some(group)).unwrap();
+        db.set_plugin_metadata(id, "notes-tags", r#"{"tags":"Prójèct"}"#).unwrap();
+        let by_text = db.query_group_filtered(group, 0, 10, Some("éCOLE".into()), Some("text".into()), None, None).unwrap();
+        assert_eq!(by_text.items.len(), 1);
+        assert_eq!(by_text.items[0].id, id);
+        let by_tag = db.query_group_filtered(group, 0, 10, Some("PRÓJÈCT".into()), None, None, None).unwrap();
+        assert_eq!(by_tag.items.len(), 1);
+        assert_eq!(by_tag.items[0].id, id);
+        assert!(db.query_group_filtered(group, 0, 10, Some("%".into()), None, None, None).unwrap().items.is_empty());
     }
 
     #[test]
@@ -1574,17 +1709,22 @@ mod sub_kind_tests {
         add_from(&db, "普通", Some("CHROME.EXE"));
         add_from(&db, "截图吧取的", Some("jietuba_pp.exe"));
         add_from(&db, "开发版取的", Some("jietuba_cpp.exe"));
+        add_from(&db, "新名称取的", Some(&format!("{}_pp.exe", group_kind::own_app_prefix())));
         add_from(&db, "不知道来源", None);
         let rule = |kind: Option<&str>, app: Option<&str>| FilterRule { kind: kind.map(str::to_string), app: app.map(str::to_string) };
 
         assert_eq!(matching(&db, FilterRule::kind("url")), vec!["https://a.com"]);
         assert_eq!(matching(&db, FilterRule::kind("color")), vec!["#fff"]);
         assert_eq!(matching(&db, FilterRule::kind("path")), vec![r"C:\a.txt"]);
-        assert_eq!(matching(&db, FilterRule::kind("text")).len(), 7);
+        assert_eq!(matching(&db, FilterRule::kind("text")).len(), 8);
         assert!(matching(&db, FilterRule::kind("image")).is_empty());
         assert_eq!(matching(&db, rule(None, Some("Chrome.exe"))), vec!["https://a.com", "普通"]);
         assert_eq!(matching(&db, rule(Some("url"), Some("chrome.exe"))), vec!["https://a.com"]);
-        assert_eq!(matching(&db, rule(None, Some(group_kind::OWN_APP))), vec!["开发版取的", "截图吧取的"]);
+        let mut own = matching(&db, rule(None, Some(group_kind::OWN_APP)));
+        own.sort();
+        let mut expected = vec!["新名称取的", "开发版取的", "截图吧取的"];
+        expected.sort();
+        assert_eq!(own, expected);
         assert!(db.query_items(0, 50, None, &FilterRule::kind("email"), None, None).is_err());
     }
 
@@ -1596,8 +1736,9 @@ mod sub_kind_tests {
             add_from(&db, text, Some(app));
         }
         add_from(&db, "8", None);
+        add_from(&db, "9", Some(&format!("{}_lite.exe", group_kind::own_app_prefix())));
         let apps = db.source_apps().unwrap();
-        assert_eq!(apps[0], (group_kind::OWN_APP.to_string(), 3));
+        assert_eq!(apps[0], (group_kind::OWN_APP.to_string(), 4));
         assert_eq!(apps[1].1, 2);
         assert!(apps[1].0.eq_ignore_ascii_case("chrome.exe"));
         assert_eq!(apps[2], ("Code.exe".to_string(), 1));

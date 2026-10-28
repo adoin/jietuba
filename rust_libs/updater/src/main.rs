@@ -167,7 +167,7 @@ fn apply(args: &HashMap<String, String>, executable: &Path, id: &str) -> Result<
             failure_message: args.get("--failure-message").cloned(),
         },
     )?;
-    let worker_exe = core::safe_join(&dir, "jietuba_updater.exe")?;
+    let worker_exe = core::safe_join(&dir, concat!(env!("JTM_NAME"), "_updater.exe"))?;
     fs::copy(std::env::current_exe()?, &worker_exe)?;
     let mut command = platform::independent_command(&worker_exe);
     command

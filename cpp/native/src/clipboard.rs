@@ -21,6 +21,7 @@ pub struct JbClipboard {
 
 /// Receives each recorded item as JSON on the watcher thread; the text is valid only during the call.
 pub type JbClipboardItemCallback = Option<unsafe extern "C" fn(item_json: *const c_char, user: *mut c_void)>;
+pub type JbClipboardCaptureFilter = Option<unsafe extern "C" fn(item_json: *const c_char, user: *mut c_void) -> bool>;
 
 struct CallbackTarget {
     callback: unsafe extern "C" fn(*const c_char, *mut c_void),
@@ -31,6 +32,20 @@ struct CallbackTarget {
 // jb_clipboard_stop_monitor returns.
 unsafe impl Send for CallbackTarget {}
 unsafe impl Sync for CallbackTarget {}
+
+struct CaptureTarget {
+    callback: unsafe extern "C" fn(*const c_char, *mut c_void) -> bool,
+    user: *mut c_void,
+}
+// The owner remains alive until stop_monitor joins the watcher.
+unsafe impl Send for CaptureTarget {}
+unsafe impl Sync for CaptureTarget {}
+
+impl CaptureTarget {
+    fn allows(&self, json: &str) -> bool {
+        CString::new(json).ok().is_some_and(|value| unsafe { (self.callback)(value.as_ptr(), self.user) })
+    }
+}
 
 impl CallbackTarget {
     fn notify(&self, item: &PyClipboardItem) {
@@ -257,6 +272,19 @@ pub unsafe extern "C" fn jb_clipboard_history_limit(ptr: *const JbClipboard) -> 
 /// No lock to take before the item callback, unlike the Python binding's GIL.
 fn run_callback(call: &mut dyn FnMut()) {
     call();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn jb_clipboard_set_capture_filter(ptr: *const JbClipboard, callback: JbClipboardCaptureFilter, user: *mut c_void) {
+    guard((), || {
+        if let Some(clipboard) = ptr.as_ref() {
+            let filter = callback.map(|callback| {
+                let target = CaptureTarget { callback, user };
+                Arc::new(move |json: &str| target.allows(json)) as manager::CaptureFilter
+            });
+            clipboard.inner.set_capture_filter(filter);
+        }
+    })
 }
 
 /// Starts the watcher thread; a null callback records without notifying.
@@ -619,6 +647,20 @@ pub unsafe extern "C" fn jb_clipboard_get_by_group(
 }
 
 #[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn jb_clipboard_get_group_filtered(
+    ptr: *const JbClipboard, group_id: i64, offset: i64, limit: i64, search: *const c_char, kind: *const c_char,
+    start: *const i64, end: *const i64, out_json: *mut *mut c_char, error: *mut c_char, error_len: usize,
+) -> bool {
+    guard_error(false, error, error_len, || {
+        let manager = manager_or_fail!(ptr, error, error_len);
+        if out_json.is_null() { write_text("invalid argument", error, error_len); return false; }
+        let result = manager.get_group_filtered(group_id, offset, limit, opt_string(search), opt_string(kind), opt_i64(start), opt_i64(end));
+        finish(result, error, error_len, |page| put_text(&serde_json::to_string(&page.items).unwrap_or_else(|_| "[]".to_string()), out_json))
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn jb_clipboard_paste_item(
     ptr: *const JbClipboard,
     id: i64,
@@ -721,5 +763,79 @@ pub unsafe extern "C" fn jb_clipboard_get_image_data(
                 }
             }
         })
+    })
+}
+
+/// A single stored format, capped before decompression; missing/oversized returns null.
+#[no_mangle]
+pub unsafe extern "C" fn jb_clipboard_get_format(
+    ptr: *const JbClipboard, id: i64, name: *const c_char, out: *mut *mut u8,
+    out_len: *mut usize, error: *mut c_char, error_len: usize,
+) -> bool {
+    guard_error(false, error, error_len, || {
+        let manager = manager_or_fail!(ptr, error, error_len);
+        let (Some(name), Some(slot), Some(len)) = (str_arg(name), out.as_mut(), out_len.as_mut()) else {
+            write_text("invalid argument", error, error_len);
+            return false;
+        };
+        *slot = std::ptr::null_mut();
+        *len = 0;
+        finish(manager.get_format_bounded(id, name, 4 * 1024 * 1024), error, error_len, |data| {
+            if let Some(bytes) = data.filter(|bytes| !bytes.is_empty()) {
+                let mut boxed = bytes.into_boxed_slice();
+                *len = boxed.len();
+                *slot = boxed.as_mut_ptr();
+                std::mem::forget(boxed);
+            }
+        })
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn jb_clipboard_format_names(
+    ptr: *const JbClipboard, id: i64, out_json: *mut *mut c_char, error: *mut c_char, error_len: usize,
+) -> bool {
+    guard_error(false, error, error_len, || {
+        let manager = manager_or_fail!(ptr, error, error_len);
+        if out_json.is_null() { write_text("invalid argument", error, error_len); return false; }
+        finish(manager.format_names(id), error, error_len, |names| {
+            put_text(&serde_json::to_string(&names).unwrap_or_else(|_| "[]".to_string()), out_json)
+        })
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn jb_clipboard_get_metadata(ptr: *const JbClipboard, id: i64, plugin: *const c_char,
+    out_json: *mut *mut c_char, error: *mut c_char, error_len: usize) -> bool {
+    guard_error(false, error, error_len, || {
+        let manager = manager_or_fail!(ptr, error, error_len);
+        let Some(plugin) = str_arg(plugin) else { write_text("invalid argument", error, error_len); return false; };
+        if out_json.is_null() { write_text("invalid argument", error, error_len); return false; }
+        *out_json = std::ptr::null_mut();
+        finish(manager.plugin_metadata(id, plugin), error, error_len, |data| {
+            if let Some(data) = data { put_text(&data, out_json); }
+        })
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn jb_clipboard_set_metadata(ptr: *const JbClipboard, id: i64, plugin: *const c_char, data: *const c_char,
+    updated: *mut bool, error: *mut c_char, error_len: usize) -> bool {
+    guard_error(false, error, error_len, || {
+        let manager = manager_or_fail!(ptr, error, error_len);
+        let (Some(plugin), Some(data), Some(updated)) = (str_arg(plugin), str_arg(data), updated.as_mut()) else {
+            write_text("invalid argument", error, error_len); return false;
+        };
+        finish(manager.set_plugin_metadata(id, plugin, data), error, error_len, |value| *updated = value)
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn jb_clipboard_metadata_matches(ptr: *const JbClipboard, id: i64, text: *const c_char,
+    matched: *mut bool, error: *mut c_char, error_len: usize) -> bool {
+    guard_error(false, error, error_len, || {
+        let manager = manager_or_fail!(ptr, error, error_len);
+        let (Some(text), Some(matched)) = (str_arg(text), matched.as_mut()) else { write_text("invalid argument", error, error_len); return false; };
+        finish(manager.metadata_matches(id, text), error, error_len, |value| *matched = value)
     })
 }

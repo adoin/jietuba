@@ -157,11 +157,56 @@ private slots:
         controller.switch_to_group(*group);
         QCOMPARE(controller.current_items.size(), 38);
         controller.set_search_text("NEEDLE");
-        // The first page has no match, yet more pages remain to be searched.
-        QVERIFY(controller.current_items.isEmpty());
-        QVERIFY(controller.has_more_items());
-        controller.load_more_if_needed();
+        // Filtering happens before paging, including matches beyond the first raw page.
         QCOMPARE(contents_of(controller.current_items), (QStringList{"needle at the end", "body"}));
+        QVERIFY(!controller.has_more_items());
+    }
+
+    void typeFilterNarrowsNormalGroups() {
+        const auto group = manager().create_group("Mixed");
+        const auto text = manager().add_item("plain text");
+        const auto file = manager().add_item(file_payload({"C:\\f.txt"}), "file");
+        QVERIFY(group && text && file);
+        QVERIFY(manager().move_to_group(*text, *group));
+        QVERIFY(manager().move_to_group(*file, *group));
+        ClipboardController controller(manager());
+        controller.switch_to_group(*group);
+        QCOMPARE(controller.current_items.size(), 2);
+        controller.set_content_type_filter(QString("file"));
+        QCOMPARE(controller.current_items.size(), 1);
+        QCOMPARE(controller.current_items.first().id, *file);
+        controller.set_content_type_filter(QString("text"));
+        QCOMPARE(controller.current_items.size(), 1);
+        QCOMPARE(controller.current_items.first().id, *text);
+        controller.set_content_type_filter(std::nullopt);
+        QCOMPARE(controller.current_items.size(), 2);
+    }
+
+    void customItemsCanBeFilteredAndShowTheirFormatNames() {
+        const auto id = manager().add_item(R"({"formats":["application/example"],"digest":"123"})", "custom");
+        QVERIFY(id);
+        ClipboardController controller(manager());
+        controller.set_content_type_filter(QString("custom"));
+        QCOMPARE(controller.current_items.size(), 1);
+        QCOMPARE(controller.current_items.first().display_text(), QString("application/example"));
+        controller.set_content_type_filter(QString("text"));
+        QVERIFY(controller.current_items.isEmpty());
+    }
+
+    void typeFilterFindsSparseItemsBeyondFirstPages() {
+        const auto group = manager().create_group("Sparse");
+        QVERIFY(group);
+        for (int i = 0; i < 180; ++i) {
+            const auto item = manager().add_item(QString("text %1").arg(i));
+            QVERIFY(item && manager().move_to_group(*item, *group));
+        }
+        const auto file = manager().add_item(file_payload({"C:\\later.txt"}), "file");
+        QVERIFY(file && manager().move_to_group(*file, *group));
+        ClipboardController controller(manager());
+        controller.switch_to_group(*group);
+        controller.set_content_type_filter(QString("file"));
+        QCOMPARE(controller.current_items.size(), 1);
+        QCOMPARE(controller.current_items.first().id, *file);
     }
 
     void groupsSwitchMoveAndDelete() {
@@ -222,6 +267,8 @@ private slots:
         controller.switch_to_group(*plain);
         QVERIFY(!controller.shows_history());
         QVERIFY(!controller.current_filter_rule());
+        QVERIFY(controller.current_items.isEmpty());
+        controller.set_content_type_filter(std::nullopt);
         QCOMPARE(contents_of(controller.current_items), QStringList{"banana"});
     }
 
@@ -251,6 +298,7 @@ private slots:
         QVERIFY(data);
         QStringList keys;
         for (const auto &action : data->actions) keys << action.key;
+        QVERIFY(keys.contains("preview_item"));
         QVERIFY(!keys.contains("edit_item") && !keys.contains("move_item_up") && !keys.contains("move_item_down"));
     }
 
@@ -387,6 +435,17 @@ private slots:
         closed = 0;
         QVERIFY(!controller.paste_items({999998, 999999}, [&closed] { ++closed; }));
         QCOMPARE(closed, 0);
+    }
+
+    void destroyingControllerCancelsPendingPaste() {
+        const auto id = add_texts({"pending"}).first();
+        {
+            ClipboardController controller(manager());
+            controller.load_history();
+            QVERIFY(controller.paste_item(id));
+        }
+        QTest::qWait(100);
+        QVERIFY(env_.pastes.isEmpty());
     }
 
     void imagesAreStitchedInTheBackground() {

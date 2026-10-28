@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QStringList>
+#include "core/brand_config.h"
 
 namespace jietuba {
 QString get_app_data_dir();
@@ -29,7 +30,7 @@ QString get_system_default_text_font_family();
 QStringList get_available_text_fonts();
 QString normalize_text_font_family(const QString &font_family, const QString *language_code = nullptr);
 
-inline const QString PROJECT_GITHUB_URL = "https://github.com/1003129155/jietuba";
+inline const QString PROJECT_GITHUB_URL = QStringLiteral("https://github.com/") + QStringLiteral(JTM_REPOSITORY);
 inline const QString PROJECT_RELEASES_LATEST_URL = PROJECT_GITHUB_URL + "/releases/latest";
-inline const QString PROJECT_LATEST_RELEASE_API_URL = "https://api.github.com/repos/1003129155/jietuba/releases/latest";
+inline const QString PROJECT_LATEST_RELEASE_API_URL = QStringLiteral("https://api.github.com/repos/") + QStringLiteral(JTM_REPOSITORY) + "/releases/latest";
 }

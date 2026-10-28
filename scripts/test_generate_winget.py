@@ -1,4 +1,7 @@
 import hashlib
+import importlib.util
+import json
+import shutil
 from pathlib import Path
 import tempfile
 import subprocess
@@ -39,7 +42,7 @@ class ManifestTests(unittest.TestCase):
                 self.assertIn(f"/releases/download/release-2.1.8/{archive.name}", content)
 
     def test_missing_architecture_writes_nothing(self):
-        (self.assets / "jietuba_lite-release-2.1.8-arm64.zip").unlink()
+        (self.assets / f"{PACKAGES[1][1]}-release-2.1.8-arm64.zip").unlink()
         with self.assertRaises(FileNotFoundError):
             generate(self.assets, self.output, "2.1.8")
         self.assertFalse(self.output.exists())
@@ -55,23 +58,37 @@ class ManifestTests(unittest.TestCase):
         with zipfile.ZipFile(archive) as bundle:
             yaml_files = [p for p in bundle.namelist() if p.endswith(".yaml")]
             self.assertEqual(len(yaml_files), 6)
-            self.assertIn("manifests/1/1003129155/Jietuba/2.1.8/1003129155.Jietuba.installer.yaml", yaml_files)
+            package = PACKAGES[0][0]
+            self.assertIn(f"manifests/1/{package.replace('.', '/')}/2.1.8/{package}.installer.yaml", yaml_files)
 
     def test_wrong_executable_layout_is_rejected(self):
-        with zipfile.ZipFile(self.assets / "jietuba_pp-release-2.1.8-x64.zip", "w") as bundle:
-            bundle.writestr("subfolder/jietuba_pp.exe", "fixture")
+        with zipfile.ZipFile(self.assets / f"{PACKAGES[0][1]}-release-2.1.8-x64.zip", "w") as bundle:
+            bundle.writestr(f"subfolder/{PACKAGES[0][1]}.exe", "fixture")
         with self.assertRaisesRegex(ValueError, "root-level"):
             generate(self.assets, self.output, "2.1.8")
 
     def test_missing_models_is_rejected(self):
-        with zipfile.ZipFile(self.assets / "jietuba_pp-release-2.1.8-x64.zip", "w") as bundle:
-            bundle.writestr("jietuba_pp.exe", "fixture")
+        with zipfile.ZipFile(self.assets / f"{PACKAGES[0][1]}-release-2.1.8-x64.zip", "w") as bundle:
+            bundle.writestr(f"{PACKAGES[0][1]}.exe", "fixture")
         with self.assertRaisesRegex(ValueError, "missing model"):
             generate(self.assets, self.output, "2.1.8")
 
     def test_invalid_version_is_rejected(self):
         with self.assertRaises(ValueError):
             generate(self.assets, self.output, "../2.1.8")
+
+    def test_changing_brand_config_changes_packages_and_repository(self):
+        project = self.root / "alternate"
+        (project / "scripts").mkdir(parents=True)
+        (project / "branding.json").write_text(json.dumps({"name": "example", "display_name": "Example", "repository": "owner/project"}), encoding="utf-8")
+        source = project / "scripts" / "generate_winget.py"
+        shutil.copyfile(Path(__file__).with_name("generate_winget.py"), source)
+        spec = importlib.util.spec_from_file_location("alternate_brand_generator", source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.REPOSITORY, "https://github.com/owner/project")
+        self.assertEqual(module.PACKAGES[0][:4], ("owner.example", "example_pp", "Example", "example"))
+        self.assertEqual(module.PACKAGES[1][1], "example_lite")
 
 
 if __name__ == "__main__":

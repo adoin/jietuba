@@ -1,4 +1,5 @@
 #include "core/data_location.h"
+#include "core/branding.h"
 #include "core/elevation.h"
 #include "core/i18n.h"
 #include "core/platform_utils.h"
@@ -54,7 +55,7 @@ void import_settings_from_file(SettingsDialog *dialog) {
     try {
         values = settings_transfer::read_settings_file(path);
     } catch (const settings_transfer::SettingsFileError &) {
-        show_error_dialog(dialog, title, dialog->tr_text("This file is not a Jietuba settings file, or it is damaged."));
+        show_error_dialog(dialog, title, brand_display(dialog->tr_text("This file is not a Jietuba settings file, or it is damaged.")));
         return;
     }
     dialog->load_imported_settings(values);

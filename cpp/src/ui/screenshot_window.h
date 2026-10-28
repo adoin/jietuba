@@ -4,6 +4,7 @@
 #include "tools/action.h"
 #include "ui/selection_info/controller.h"
 #include <QImage>
+#include <QJsonObject>
 #include <QPointer>
 #include <QRectF>
 #include <QWidget>
@@ -22,6 +23,7 @@ class SystemCursor;
 class Toolbar;
 class ToolSettingsManager;
 class ScreenshotWindow;
+namespace plugins { class ExtensionSession; struct ExtensionResult; }
 
 // Capture window shortcuts; highest priority (100).
 class ScreenshotShortcutHandler : public ShortcutHandler {
@@ -136,6 +138,10 @@ private:
     void safe_activate_and_focus();
     void on_selection_dragging_changed(bool is_dragging);
     void on_selection_confirmed();
+    void run_plugin_toolbar_action(const QString &plugin, const QString &id);
+    void prepare_plugin_output(const QImage &image, const QRectF &rect, const QString &action, std::function<void(QImage)> done);
+    void notify_plugin_export(const QJsonObject &payload, const QRectF &rect, const QString &action);
+    QJsonObject plugin_context(const QRectF &rect = {}, const QString &action = {}) const;
     void init_smart_selection_at_cursor();
     void init_magnifier_at_cursor();
     void on_tool_changed(const QString &tool_id);
@@ -160,6 +166,10 @@ private:
     void on_redo();
 
     bool session_active_ = false;
+    bool plugin_processing_ = false;
+    bool plugin_exported_ = false;
+    QString plugin_session_id_;
+    plugins::ExtensionSession *plugin_session_ = nullptr;
     bool fullscreen_crosshair_ = false;
     InitialSelectionGate *initial_selection_gate_ = nullptr;
     std::shared_ptr<SystemCursor> capture_cursor_;

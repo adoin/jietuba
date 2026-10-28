@@ -121,6 +121,8 @@ const QList<ItemMenuSpec> &item_menu_specs() {
         special.children_builder = special_paste_menu_children;
         list.append(special);
         list.append(ItemMenuSpec{"start_marking", "Multi-select"});
+        list.append(ItemMenuSpec{"preview_item", "Preview"});
+        list.append(ItemMenuSpec{"preview_formats", "Formats"});
         list.append(ItemMenuSpec{"sep_after_paste", {}, true});
         ItemMenuSpec pin{"pin_image", "Pin as Overlay"};
         pin.predicate = [](const ItemMenuState &state) { return state.is_image_item(); };

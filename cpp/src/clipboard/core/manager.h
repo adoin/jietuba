@@ -71,6 +71,11 @@ public:
     QList<qint64> paste_items(const QList<qint64> &item_ids, bool with_html = true, bool move_to_top = false, const QString &separator = "\n",
                               bool plain_text = false, const QString &layout = "vertical", bool keep_in_history = false);
     std::optional<QByteArray> get_image_data(const QString &image_id);
+    std::optional<QByteArray> get_format(qint64 item_id, const QString &name);
+    QStringList format_names(qint64 item_id);
+    QJsonObject plugin_metadata(qint64 item_id, const QString &plugin_id);
+    bool set_plugin_metadata(qint64 item_id, const QString &plugin_id, const QJsonObject &metadata);
+    bool metadata_matches(qint64 item_id, const QString &text);
 
     // filter_rule is required for a filter group and ignored for the others.
     std::optional<qint64> create_group(const QString &name, const std::optional<QString> &color = std::nullopt, const std::optional<QString> &icon = std::nullopt,
@@ -85,6 +90,8 @@ public:
     bool move_group_between(qint64 group_id, std::optional<qint64> before_id = std::nullopt, std::optional<qint64> after_id = std::nullopt);
     bool move_item_between(qint64 item_id, std::optional<qint64> before_id = std::nullopt, std::optional<qint64> after_id = std::nullopt);
     QList<ClipboardItem> get_by_group(std::optional<qint64> group_id = std::nullopt, qint64 offset = 0, qint64 limit = 50);
+    QList<ClipboardItem> get_group_filtered(qint64 group_id, qint64 offset, qint64 limit, const std::optional<QString> &search,
+                                            const std::optional<QString> &kind, std::optional<qint64> start, std::optional<qint64> end);
 
     // Without a saved path the database lives under the application data folder.
     static QString default_db_path();
@@ -103,6 +110,7 @@ private:
     void set_backend(std::shared_ptr<JbClipboard> backend);
     void drop_backend();
     static void on_native_item(const char *item_json, void *user);
+    static bool on_capture_filter(const char *item_json, void *user);
     void on_item(const ClipboardItem &item, qint64 encoded_sizes);
 
     mutable std::mutex backend_lock_;

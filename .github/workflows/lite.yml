@@ -17,6 +17,17 @@ defaults:
     working-directory: cpp
 
 jobs:
+  branding:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.brand.outputs.name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: brand
+        shell: bash
+        working-directory: .
+        run: echo "name=$(python3 -c 'import json; print(json.load(open("branding.json"))["name"])')" >> "$GITHUB_OUTPUT"
+
   qt-x64:
     # The x64 static Qt also supplies the host tools for the ARM64 cross build.
     runs-on: windows-latest
@@ -31,7 +42,7 @@ jobs:
         run: .\scripts\build_static_qt.ps1 -Arch x64
 
   build:
-    needs: qt-x64
+    needs: [qt-x64, branding]
     strategy:
       fail-fast: false
       matrix:
@@ -64,13 +75,13 @@ jobs:
       - run: .\build.cmd -Static -Arch ${{ matrix.arch }}${{ matrix.variant == 'full' && ' -Full' || '' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ matrix.variant == 'full' && 'jietuba_pp' || 'jietuba_lite' }}-cpp-${{ matrix.arch }}
+          name: ${{ needs.branding.outputs.name }}_${{ matrix.variant == 'full' && 'pp' || 'lite' }}-cpp-${{ matrix.arch }}
           path: cpp/dist/Release-static${{ matrix.arch == 'arm64' && '-arm64' || '' }}${{ matrix.variant == 'full' && '-full' || '' }}/
           if-no-files-found: error
 
   smoke:
     # Each exe starts on its own architecture; ARM64 cannot run on the x64 build machine.
-    needs: build
+    needs: [build, branding]
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +94,7 @@ jobs:
             runner: windows-11-arm
     runs-on: ${{ matrix.runner }}
     env:
-      PACKAGE: ${{ matrix.variant == 'full' && 'jietuba_pp' || 'jietuba_lite' }}
+      PACKAGE: ${{ needs.branding.outputs.name }}_${{ matrix.variant == 'full' && 'pp' || 'lite' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0

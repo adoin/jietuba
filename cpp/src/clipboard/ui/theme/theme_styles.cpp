@@ -37,7 +37,7 @@ QString ThemeStyleGenerator::generate_window_style(int opacity) const {
                 font-size: %9;
             }
         )")
-        .arg(hex_to_rgb(c.bg_primary), alpha_text(opacity), c.border_primary, px(4), c.bg_primary, c.text_primary, px(4), px(8), px(12));
+        .arg(hex_to_rgb(c.bg_primary), alpha_text(opacity), c.border_primary, px(9), c.bg_primary, c.text_primary, px(4), px(8), px(12));
 }
 
 QString ThemeStyleGenerator::generate_list_widget_style(int opacity) const {

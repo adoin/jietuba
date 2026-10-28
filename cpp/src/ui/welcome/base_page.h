@@ -7,12 +7,13 @@
 #include <QWidget>
 #include <optional>
 #include <tuple>
+#include "core/brand_config.h"
 
 // The shared page frame and visual rules of the welcome wizard.
 namespace jietuba {
 class ToolSettingsManager;
 
-inline const QString PRODUCT_NAME = "Jietuba";
+inline const QString PRODUCT_NAME = QStringLiteral(JTM_DISPLAY_NAME);
 constexpr int WELCOME_RADIUS = 16;
 
 QString welcome_tr(const char *text);

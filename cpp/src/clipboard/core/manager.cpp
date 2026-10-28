@@ -1,12 +1,19 @@
 #include "clipboard/core/manager.h"
+#include "plugins/plugin_filters.h"
+#include "core/i18n.h"
+#include "ui/toast.h"
 #include "core/constants.h"
 #include "core/logger.h"
 #include "core/native.h"
 #include "core/text_utils.h"
 #include "settings/tool_settings.h"
+#include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMetaObject>
+#include <atomic>
 
 namespace jietuba::clipboard {
 namespace {
@@ -216,10 +223,30 @@ void ClipboardManager::start_monitoring(Callback callback) {
         callback_ = std::move(callback);
     }
     char error[ERROR_LEN] = {};
+    jb_clipboard_set_capture_filter(backend.get(), &ClipboardManager::on_capture_filter, this);
     if (jb_clipboard_start_monitor(backend.get(), &ClipboardManager::on_native_item, this, error, ERROR_LEN))
         log_info(T("开始监听剪贴板"), "Clipboard");
     else
         log_error(T("启动监听失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
+}
+
+bool ClipboardManager::on_capture_filter(const char *item_json, void *) {
+    try {
+        bool failed = false;
+        const bool allowed = plugins::allow_capture(item_json ? QByteArray(item_json) : QByteArray(), {}, &failed);
+        if (failed) {
+            // Avoid a toast on every clipboard change while still surfacing later failures.
+            static std::atomic<qint64> last_notice{0};
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            qint64 previous = last_notice.load();
+            if (now - previous >= 60000 && last_notice.compare_exchange_strong(previous, now)) QMetaObject::invokeMethod(QCoreApplication::instance(), [] {
+                show_toast(i18n_tr("A capture filter failed. Matching items will not be saved until it is fixed or disabled.", "ClipboardWindow"));
+            }, Qt::QueuedConnection);
+        }
+        return allowed;
+    } catch (...) {
+        return false;
+    }
 }
 
 void ClipboardManager::clear_callback() {
@@ -457,6 +484,62 @@ std::optional<QByteArray> ClipboardManager::get_image_data(const QString &image_
     return bytes;
 }
 
+std::optional<QByteArray> ClipboardManager::get_format(qint64 item_id, const QString &name) {
+    const auto backend = this->backend();
+    if (!backend) return std::nullopt;
+    uint8_t *data = nullptr;
+    size_t len = 0;
+    char error[ERROR_LEN] = {};
+    if (!jb_clipboard_get_format(backend.get(), item_id, utf8(name).constData(), &data, &len, error, ERROR_LEN)) {
+        log_error(T("读取剪贴板格式失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
+        return std::nullopt;
+    }
+    if (!data) return std::nullopt;
+    QByteArray bytes(reinterpret_cast<const char *>(data), static_cast<qsizetype>(len));
+    jb_clipboard_bytes_free(data, len);
+    return bytes;
+}
+
+QStringList ClipboardManager::format_names(qint64 item_id) {
+    const auto backend = this->backend();
+    if (!backend) return {};
+    char *json = nullptr;
+    char error[ERROR_LEN] = {};
+    if (!jb_clipboard_format_names(backend.get(), item_id, &json, error, ERROR_LEN) || !json) return {};
+    const auto document = QJsonDocument::fromJson(QByteArray(json));
+    jb_clipboard_text_free(json);
+    QStringList names;
+    for (const auto &value : document.array()) if (value.isString()) names.append(value.toString());
+    return names;
+}
+
+QJsonObject ClipboardManager::plugin_metadata(qint64 item_id, const QString &plugin_id) {
+    const auto backend = this->backend();
+    if (!backend) return {};
+    char *json = nullptr;
+    char error[ERROR_LEN] = {};
+    if (!jb_clipboard_get_metadata(backend.get(), item_id, utf8(plugin_id).constData(), &json, error, ERROR_LEN)) return {};
+    return take_json(json).object();
+}
+
+bool ClipboardManager::set_plugin_metadata(qint64 item_id, const QString &plugin_id, const QJsonObject &metadata) {
+    const auto backend = this->backend();
+    if (!backend) return false;
+    bool updated = false;
+    char error[ERROR_LEN] = {};
+    const QByteArray data = QJsonDocument(metadata).toJson(QJsonDocument::Compact);
+    if (!jb_clipboard_set_metadata(backend.get(), item_id, utf8(plugin_id).constData(), data.constData(), &updated, error, ERROR_LEN)) return false;
+    return updated;
+}
+
+bool ClipboardManager::metadata_matches(qint64 item_id, const QString &text) {
+    const auto backend = this->backend();
+    if (!backend) return false;
+    bool matched = false;
+    char error[ERROR_LEN] = {};
+    return jb_clipboard_metadata_matches(backend.get(), item_id, utf8(text).constData(), &matched, error, ERROR_LEN) && matched;
+}
+
 std::optional<qint64> ClipboardManager::create_group(const QString &name, const std::optional<QString> &color, const std::optional<QString> &icon, int group_type,
                                                     const std::optional<FilterRule> &filter_rule) {
     const auto backend = this->backend();
@@ -564,6 +647,21 @@ QList<ClipboardItem> ClipboardManager::get_by_group(std::optional<qint64> group_
     char *json = nullptr;
     char error[ERROR_LEN] = {};
     if (!jb_clipboard_get_by_group(backend.get(), optional_id(group_id), offset, limit, &json, error, ERROR_LEN)) {
+        log_error(T("按分组查询失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
+        return {};
+    }
+    return items_from(json);
+}
+
+QList<ClipboardItem> ClipboardManager::get_group_filtered(qint64 group_id, qint64 offset, qint64 limit, const std::optional<QString> &search,
+                                                          const std::optional<QString> &kind, std::optional<qint64> start, std::optional<qint64> end) {
+    const auto backend = this->backend();
+    if (!backend) return {};
+    char *json = nullptr;
+    char error[ERROR_LEN] = {};
+    QByteArray search_text, kind_text;
+    if (!jb_clipboard_get_group_filtered(backend.get(), group_id, offset, limit, optional_arg(search, search_text), optional_arg(kind, kind_text),
+                                         optional_id(start), optional_id(end), &json, error, ERROR_LEN)) {
         log_error(T("按分组查询失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
         return {};
     }

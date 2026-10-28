@@ -7,12 +7,16 @@
 #include "clipboard/ui/widgets/item_drag.h"
 #include "clipboard/ui/widgets/selection_bar.h"
 #include "clipboard/ui/widgets/quick_edit_popup.h"
+#include "plugins/plugin_package.h"
+#include "plugins/plugin_actions.h"
+#include "plugins/plugin_manager_dialog.h"
 #include "core/i18n.h"
 #include "core/platform_utils.h"
 #include "core/ui_scale.h"
 #include "ui/fluent_lite/inputs.h"
 #include <QCursor>
 #include <QDateEdit>
+#include <QDialog>
 #include <QDesktopServices>
 #include <QDrag>
 #include <QFile>
@@ -775,26 +779,15 @@ private slots:
         window->clear_search_btn->click();
         QTRY_COMPARE(window->list_widget->count(), 3);
 
+        QVERIFY(window->type_filter_bar->isVisible());
+        window->type_filter_tabs[6]->click();
+        QCOMPARE(window->list_widget->count(), 1);
+        QVERIFY(window->type_filter_tabs[6]->isChecked());
+        window->type_filter_tabs[2]->click();
+        QCOMPARE(window->list_widget->count(), 0);
+        window->type_filter_tabs[6]->click();
         window->time_filter_toggle_btn->click();
         QVERIFY(window->time_filter_bar->isVisible());
-        {
-            MenuPicker picker("File");
-            window->type_filter_btn->click();
-            QVERIFY(picker.picked);
-        }
-        QCOMPARE(window->list_widget->count(), 1);
-        QCOMPARE(window->type_filter_btn->text(), QString("File"));
-        {
-            MenuPicker picker("Link");
-            window->type_filter_btn->click();
-            QVERIFY(picker.picked);
-        }
-        QCOMPARE(window->type_filter_btn->text(), QString("Link"));
-        {
-            MenuPicker picker("File");
-            window->type_filter_btn->click();
-            QVERIFY(picker.picked);
-        }
         window->start_date_edit->setDate(QDate(2000, 1, 1));
         window->end_date_edit->setDate(QDate(2000, 1, 2));
         window->apply_time_filter_btn->click();
@@ -803,10 +796,20 @@ private slots:
         window->start_date_edit->setDate(QDate(2001, 1, 1));
         window->apply_time_filter_btn->click();
         QVERIFY(window->start_date_edit->property("hasError").toBool());
-        // Closing the bar drops both filters.
+        // Closing the date bar leaves the type tab selected.
         window->clear_time_filter_btn->click();
         QVERIFY(!window->time_filter_bar->isVisible());
+        QCOMPARE(window->list_widget->count(), 1);
+        QVERIFY(window->type_filter_tabs[6]->isChecked());
+        window->type_filter_tabs[0]->click();
         QCOMPARE(window->list_widget->count(), 3);
+        const auto custom = manager().add_item(R"({"formats":["application/example"],"digest":"a"})", "custom");
+        QVERIFY(custom);
+        window->request_data_refresh();
+        window->type_filter_tabs[7]->click();
+        QCOMPARE(window->list_widget->count(), 1);
+        QCOMPARE(window->controller->current_items.first().id, *custom);
+        window->type_filter_tabs[0]->click();
         // The search is dropped on hide unless kept.
         window->search_input->setText("banana");
         window->hide();
@@ -1117,17 +1120,16 @@ private slots:
         QVERIFY(manager().create_group("Text", std::nullopt, std::nullopt, static_cast<int>(GroupType::FILTER), FilterRule::of_kind("text")));
         auto *window = open_window();
         QTRY_VERIFY(!window->group_bar->group_buttons.isEmpty());
-        window->time_filter_toggle_btn->click();
-        QVERIFY(window->type_filter_btn->isEnabled());
+        QVERIFY(window->type_filter_tabs[0]->isEnabled());
         window->group_bar->group_buttons.first()->click();
         QCOMPARE(window->list_widget->count(), 2);
-        QVERIFY(!window->type_filter_btn->isEnabled());
-        QCOMPARE(window->type_filter_btn->text(), QString("Text"));
+        QVERIFY(!window->type_filter_tabs[0]->isEnabled());
+        QVERIFY(window->type_filter_tabs[1]->isChecked());
         // Back in the history the button is the user's again.
         window->group_bar->clipboard_btn->click();
         QCOMPARE(window->list_widget->count(), 3);
-        QVERIFY(window->type_filter_btn->isEnabled());
-        QCOMPARE(window->type_filter_btn->text(), QString("All"));
+        QVERIFY(window->type_filter_tabs[0]->isEnabled());
+        QVERIFY(window->type_filter_tabs[0]->isChecked());
         QVERIFY(!window->grab().isNull());
     }
 
@@ -1207,6 +1209,200 @@ private slots:
         reopen();
         QCOMPARE(window->pos(), cursor + QPoint(10, 10));
         env_.config->set_clipboard_open_position("cursor");
+    }
+
+    void previewOpensFromKeyboard() {
+        const auto id = add_texts({QString("contents ").repeated(400)}).first();
+        auto *window = open_window();
+        QVERIFY(window->selection_manager->move_cursor_to(id));
+        QVERIFY(key(Qt::Key_F4));
+        auto *dialog = window->findChild<QDialog *>("clipboardDetailPreview");
+        QVERIFY(dialog && dialog->isVisible());
+        auto *editor = dialog->findChild<TextEdit *>("previewContent");
+        QVERIFY(editor);
+        QCOMPARE(editor->toPlainText(), QString("contents ").repeated(400));
+        dialog->close();
+    }
+
+    void actionPluginAppearsInItemMenu() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_ACTION_PACKAGE");
+        if (package.isEmpty()) QSKIP("No action plugin package supplied");
+        const auto installed = jietuba::plugins::install_plugin_package(package);
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        const auto cleanup = qScopeGuard([] { jietuba::plugins::uninstall_plugin("json-pretty"); });
+        const auto id = add_texts({"{\"answer\":42}"}).first();
+        auto *window = open_window();
+        const auto item = window->get_item_data(id);
+        QVERIFY(item);
+        const auto actions = jietuba::plugins::action_plugins(*item);
+        QCOMPARE(actions.size(), 1);
+        MenuPicker picker;
+        window->show_item_context_menu(id, row_center(id));
+        QVERIFY(picker.shown);
+        QVERIFY(picker.seen.contains(actions.first().name));
+    }
+
+    void pluginCanBeInstalledFromTheGearMenu() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_ACTION_PACKAGE");
+        if (package.isEmpty()) QSKIP("No action plugin package supplied");
+        const QString language = I18nManager::get_current_language();
+        const auto restore = qScopeGuard([language] { I18nManager::load_language(language); jietuba::plugins::uninstall_plugin("json-pretty"); });
+        I18nManager::load_language("en");
+        auto *window = open_window();
+        FileDialogAnswerer file(package);
+        ModalAnswerer dialogs(true);
+        QVERIFY(gear_pick("Install Plugin"));
+        QTRY_VERIFY(file.answered);
+        QTRY_COMPARE(dialogs.answered(), 2);
+        const auto installed = jietuba::plugins::installed_plugins();
+        QVERIFY(std::any_of(installed.begin(), installed.end(), [](const auto &plugin) { return plugin.id == "json-pretty"; }));
+        QVERIFY(window->isVisible());
+    }
+
+    void backupRunsFromTheGearMenu() {
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_BACKUP_PACKAGE");
+        if (package.isEmpty()) QSKIP("No backup plugin package supplied");
+        const auto installed = jietuba::plugins::install_plugin_package(package);
+        QVERIFY2(installed.ok, qPrintable(installed.error));
+        const auto cleanup = qScopeGuard([] { jietuba::plugins::uninstall_plugin("clipboard-backup"); });
+        const QString language = I18nManager::get_current_language();
+        const auto restore_language = qScopeGuard([language] { I18nManager::load_language(language); });
+        I18nManager::load_language("en");
+        const QString destination = env_.dir.filePath("ui-backup.jtbbackup");
+        add_texts({"backup fixture"});
+        auto *window = open_window();
+        FileDialogAnswerer file(destination);
+        bool password_entered = false, success_seen = false;
+        QTimer answerer;
+        answerer.setInterval(10);
+        connect(&answerer, &QTimer::timeout, this, [&] {
+            auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            if (!dialog) return;
+            if (dialog->objectName() == "backupPasswordDialog") {
+                auto *password = dialog->findChild<QLineEdit *>("backupPassword");
+                auto *repeat = dialog->findChild<QLineEdit *>("backupPasswordRepeat");
+                auto *buttons = dialog->findChild<QDialogButtonBox *>();
+                if (password && repeat && buttons) {
+                    password->setText("fixture password"); repeat->setText("fixture password");
+                    password_entered = true;
+                    buttons->button(QDialogButtonBox::Ok)->click();
+                }
+            } else if (dialog->objectName() == "standardDialog" && !success_seen) {
+                auto *buttons = dialog->findChild<QDialogButtonBox *>();
+                if (buttons && !buttons->buttons().isEmpty()) {
+                    success_seen = true;
+                    buttons->buttons().first()->click();
+                }
+            }
+        });
+        answerer.start();
+        QVERIFY(gear_pick("Backup Clipboard"));
+        QTRY_VERIFY(file.answered);
+        QTRY_VERIFY(password_entered);
+        QTRY_VERIFY_WITH_TIMEOUT(success_seen, 30000);
+        QVERIFY(QFileInfo(destination).size() > 0);
+        QFile encrypted(destination);
+        QVERIFY(encrypted.open(QIODevice::ReadOnly));
+        QVERIFY(!encrypted.readAll().contains("backup fixture"));
+        QVERIFY(QDir(env_.dir.path()).entryList({".jietuba-backup-*"}, QDir::Dirs | QDir::Hidden).isEmpty());
+        QVERIFY(window->isVisible());
+        answerer.stop();
+        const QString old_db = manager().get_db_path().value_or(QString());
+        bool source_selected = false, folder_selected = false, restore_password = false, switched = false;
+        QTimer restore_answerer;
+        restore_answerer.setInterval(10);
+        connect(&restore_answerer, &QTimer::timeout, this, [&] {
+            auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            if (!dialog) return;
+            if (auto *file_dialog = qobject_cast<QFileDialog *>(dialog)) {
+                auto *name = file_dialog->findChild<QLineEdit *>("fileNameEdit");
+                if (!name) return;
+                if (file_dialog->fileMode() == QFileDialog::Directory) {
+                    folder_selected = true;
+                    file_dialog->setDirectory(env_.dir.path());
+                    name->clear();
+                } else {
+                    source_selected = true;
+                    file_dialog->setDirectory(QFileInfo(destination).absolutePath());
+                    name->setText(QFileInfo(destination).fileName());
+                }
+                static_cast<QDialog *>(file_dialog)->accept();
+            } else if (dialog->objectName() == "backupPasswordDialog") {
+                auto *password = dialog->findChild<QLineEdit *>("backupPassword");
+                auto *buttons = dialog->findChild<QDialogButtonBox *>();
+                if (password && buttons) {
+                    password->setText("fixture password");
+                    restore_password = true;
+                    buttons->button(QDialogButtonBox::Ok)->click();
+                }
+            } else if (dialog->objectName() == "standardDialog") {
+                auto *buttons = dialog->findChild<QDialogButtonBox *>();
+                if (!buttons) return;
+                for (auto *button : buttons->buttons()) if (buttons->buttonRole(button) == QDialogButtonBox::YesRole) {
+                    switched = true;
+                    button->click();
+                    return;
+                }
+                if (!buttons->buttons().isEmpty()) buttons->buttons().first()->click();
+            }
+        });
+        restore_answerer.start();
+        QVERIFY(gear_pick("Restore Clipboard"));
+        QTRY_VERIFY(source_selected && folder_selected && restore_password && switched);
+        const QString new_db = manager().get_db_path().value_or(QString());
+        QVERIFY(!new_db.isEmpty() && new_db != old_db);
+        QVERIFY(QFileInfo::exists(old_db));
+        QVERIFY(contents_of(manager().get_history()).contains("backup fixture"));
+    }
+
+    void visualClipboardAndPluginManager() {
+        const QString dir = qEnvironmentVariable("JIETUBA_VISUAL_DIR");
+        if (dir.isEmpty()) QSKIP("No visual output directory supplied");
+        const QString language = I18nManager::get_current_language();
+        const auto restore = qScopeGuard([language] { I18nManager::load_language(language); });
+        I18nManager::load_language("zh");
+        const auto id = add_texts({"Sample clipboard text", "https://example.com", "#41bfb0"}).first();
+        QVERIFY(manager().add_item(R"({"formats":["application/example"],"digest":"test"})", "custom"));
+        const QString package = qEnvironmentVariable("JIETUBA_TEST_ACTION_PACKAGE");
+        if (!package.isEmpty()) QVERIFY(jietuba::plugins::install_plugin_package(package).ok);
+        const QString source_package = qEnvironmentVariable("JIETUBA_TEST_SOURCE_PACKAGE");
+        if (!source_package.isEmpty()) QVERIFY(jietuba::plugins::install_plugin_package(source_package).ok);
+        auto *window = open_window();
+        window->resize(460, 600);
+        QTest::qWait(200);
+        QVERIFY(window->grab().save(QDir(dir).filePath("clipboard.png")));
+        window->type_filter_tabs[7]->click();
+        QCOMPARE(window->list_widget->count(), 1);
+        window->type_filter_tabs[0]->click();
+        window->preview_item(id);
+        auto *preview = window->findChild<QDialog *>("clipboardDetailPreview");
+        QVERIFY(preview && preview->isVisible());
+        QVERIFY(preview->grab().save(QDir(dir).filePath("preview.png")));
+        preview->close();
+        bool captured = false;
+        QTimer::singleShot(100, [&] {
+            QWidget *dialog = QApplication::activeModalWidget();
+            if (!dialog) for (auto *surface : QApplication::topLevelWidgets())
+                if (surface->objectName() == "pluginManagerDialog") { dialog = surface; break; }
+            if (dialog && dialog->objectName() == "pluginManagerDialog") {
+                auto *list = dialog->findChild<QListWidget *>("pluginList");
+                if (list) for (int row = 0; row < list->count(); ++row)
+                    if (list->item(row)->data(Qt::UserRole).toString() == "source-exclusions") list->setCurrentRow(row);
+                captured = dialog->grab().save(QDir(dir).filePath("plugins.png"));
+                if (auto *settings_button = dialog->findChild<QPushButton *>("pluginSettings"); settings_button && settings_button->isEnabled()) {
+                    QTimer::singleShot(100, [&] {
+                        if (auto *settings = qobject_cast<QDialog *>(QApplication::activeModalWidget()); settings && settings->objectName() == "pluginSettingsDialog") {
+                            captured = captured && settings->grab().save(QDir(dir).filePath("plugin-settings.png"));
+                            settings->reject();
+                        }
+                    });
+                    settings_button->click();
+                }
+                qobject_cast<QDialog *>(dialog)->accept();
+            }
+        });
+        jietuba::plugins::show_plugin_manager(window);
+        QVERIFY(captured);
     }
 
     void displayLineMenuUpdatesRowsAndSurvivesReopening() {

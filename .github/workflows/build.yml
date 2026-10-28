@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "release-*"
-  # 手动触发只构建并签名，不创建发布草稿
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,9 +12,14 @@ jobs:
   # 标签必须等于 release-<VERSION 文件里的版本>；放在最前面，标签写错时不必等编完才发现
   check-version:
     runs-on: ubuntu-latest
+    outputs:
+      brand: ${{ steps.brand.outputs.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - id: brand
+        run: echo "name=$(python3 -c 'import json; print(json.load(open("branding.json"))["name"])')" >> "$GITHUB_OUTPUT"
 
       - name: Check tag matches VERSION
         if: startsWith(github.ref, 'refs/tags/')
@@ -35,8 +38,12 @@ jobs:
     uses: ./.github/workflows/lite.yml
 
   package:
-    needs: lite
-    # 签名 token 存在 signing 环境中，该环境只允许 master2 分支和 release-* 标签使用
+    needs: [lite, check-version]
+    env:
+      PACKAGE_FULL: ${{ needs.check-version.outputs.brand }}_pp
+      PACKAGE_LITE: ${{ needs.check-version.outputs.brand }}_lite
+      BRAND: ${{ needs.check-version.outputs.brand }}
+    # 如果仓库配置签名环境，需允许 release-* 标签运行。
     environment: signing
     strategy:
       fail-fast: false
@@ -49,31 +56,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # 旧版更新器按包名 jietuba_pp-<tag>-<arch>.zip 精确匹配，只替换 zip 根目录的 jietuba_pp.exe，models/ 留在原处
+      # 更新器按品牌配置生成的包名匹配，models/ 留在原处。
       - name: Download full build
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: jietuba_pp-cpp-${{ matrix.arch }}
+          name: ${{ env.PACKAGE_FULL }}-cpp-${{ matrix.arch }}
           path: dist
 
-      # 旧版更新器按包名 jietuba_lite-<tag>-<arch>.zip 精确匹配，只替换 zip 根目录的 jietuba_lite.exe
+      # 轻量版与完整版使用相同品牌前缀。
       - name: Download lite build
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: jietuba_lite-cpp-${{ matrix.arch }}
+          name: ${{ env.PACKAGE_LITE }}-cpp-${{ matrix.arch }}
           path: dist_lite
 
       # 签名策略由仓库变量 SIGNPATH_SIGNING_POLICY 决定：留空时跳过签名，
       # test-signing 用测试证书，release-signing 用正式证书（需在 SignPath 中人工批准）。
       # 签名范围由 SignPath 项目的 Artifact Configuration「windows-exes」定义：zip 根目录下的两个 exe，
       # 并要求 exe 的产品版本等于 version 参数；两个版本的产品版本都取自根目录 VERSION 文件。
+      - name: Check signing project configuration
+        if: vars.SIGNPATH_SIGNING_POLICY != '' && vars.SIGNPATH_PROJECT_SLUG == ''
+        run: throw 'Set SIGNPATH_PROJECT_SLUG for this independent project before signing.'
+
+      - name: Check installer signing configuration
+        if: vars.SIGNPATH_SIGNING_POLICY != '' && vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION == ''
+        run: throw 'Set SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION before signing installers.'
+
       - name: Stage unsigned executables
         id: stage
         if: vars.SIGNPATH_SIGNING_POLICY != ''
         run: |
           New-Item -ItemType Directory -Force unsigned | Out-Null
-          Copy-Item dist\jietuba_pp.exe unsigned\
-          Copy-Item dist_lite\jietuba_lite.exe unsigned\
+          Copy-Item "dist\$($env:PACKAGE_FULL).exe" unsigned\
+          Copy-Item "dist_lite\$($env:PACKAGE_LITE).exe" unsigned\
           "version=$((Get-Content VERSION -Raw).Trim())" >> $env:GITHUB_OUTPUT
 
       - name: Upload unsigned executables
@@ -90,9 +105,9 @@ jobs:
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: jietuba
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY }}
-          artifact-configuration-slug: windows-exes
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION || 'windows-exes' }}
           github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: signed
@@ -102,30 +117,108 @@ jobs:
       - name: Replace executables with signed ones
         if: vars.SIGNPATH_SIGNING_POLICY != ''
         run: |
-          Copy-Item signed\jietuba_pp.exe dist\ -Force
-          Copy-Item signed\jietuba_lite.exe dist_lite\ -Force
-          foreach ($exe in "dist\jietuba_pp.exe", "dist_lite\jietuba_lite.exe") {
+          Copy-Item "signed\$($env:PACKAGE_FULL).exe" dist\ -Force
+          Copy-Item "signed\$($env:PACKAGE_LITE).exe" dist_lite\ -Force
+          foreach ($exe in "dist\$($env:PACKAGE_FULL).exe", "dist_lite\$($env:PACKAGE_LITE).exe") {
             $status = (Get-AuthenticodeSignature $exe).Status
             Write-Host "$exe : $status"
             if ($status -eq "NotSigned") { throw "$exe is not signed" }
           }
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path -LiteralPath $compiler)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+          }
+
+      - name: Build full-edition installer
+        shell: pwsh
+        run: |
+          ./scripts/build_installer.ps1 -SourceDir ./dist -OutputDir ./installers -Arch '${{ matrix.arch }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+
+      - name: Upload unsigned installer
+        id: upload-unsigned-installer
+        if: vars.SIGNPATH_SIGNING_POLICY != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: unsigned-installer-${{ matrix.arch }}
+          path: installers/*.exe
+          if-no-files-found: error
+
+      - name: Sign installer with SignPath
+        if: vars.SIGNPATH_SIGNING_POLICY != ''
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-installer
+          parameters: |
+            version: ${{ toJSON(steps.stage.outputs.version) }}
+
+      - name: Replace installer with signed one
+        if: vars.SIGNPATH_SIGNING_POLICY != ''
+        shell: pwsh
+        run: |
+          $name = "$($env:BRAND)_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe"
+          Copy-Item -LiteralPath "signed-installer/$name" -Destination "installers/$name" -Force
+          if ((Get-AuthenticodeSignature -LiteralPath "installers/$name").Status -eq 'NotSigned') { throw 'Installer is not signed.' }
+
       - name: Package dist as zip
         run: |
-          Compress-Archive -Path dist\* -DestinationPath jietuba_pp-${{ github.ref_name }}-${{ matrix.arch }}.zip
-          Compress-Archive -Path dist_lite\* -DestinationPath jietuba_lite-${{ github.ref_name }}-${{ matrix.arch }}.zip
+          Compress-Archive -Path dist\* -DestinationPath "$($env:PACKAGE_FULL)-${{ github.ref_name }}-${{ matrix.arch }}.zip"
+          Compress-Archive -Path dist_lite\* -DestinationPath "$($env:PACKAGE_LITE)-${{ github.ref_name }}-${{ matrix.arch }}.zip"
+          $installer = "$($env:BRAND)_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe"
+          Copy-Item -LiteralPath "installers/$installer" -Destination $installer
 
       - name: Upload build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: jietuba-${{ github.ref_name }}-${{ matrix.arch }}
+          name: ${{ env.BRAND }}-${{ github.ref_name }}-${{ matrix.arch }}
           path: |
-            jietuba_pp-${{ github.ref_name }}-${{ matrix.arch }}.zip
-            jietuba_lite-${{ github.ref_name }}-${{ matrix.arch }}.zip
+            ${{ env.PACKAGE_FULL }}-${{ github.ref_name }}-${{ matrix.arch }}.zip
+            ${{ env.PACKAGE_LITE }}-${{ github.ref_name }}-${{ matrix.arch }}.zip
+            ${{ env.BRAND }}_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe
+
+  smoke-installer:
+    needs: [package, check-version]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Download installer
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.check-version.outputs.brand }}-${{ github.ref_name }}-${{ matrix.arch }}
+          path: package
+
+      - name: Test installation, upgrade and uninstall
+        shell: pwsh
+        run: |
+          $scratch = Join-Path $env:RUNNER_TEMP 'installer-smoke'
+          New-Item -ItemType Directory -Path $scratch -Force | Out-Null
+          ./scripts/smoke_installer.ps1 -Installer 'package/${{ needs.check-version.outputs.brand }}_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe' -ScratchRoot $scratch
 
   release:
-    needs: package
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [package, check-version, smoke-installer]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release-')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -136,26 +229,26 @@ jobs:
       - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: jietuba-${{ github.ref_name }}-*
+          pattern: ${{ needs.check-version.outputs.brand }}-${{ github.ref_name }}-*
           path: release-assets
           merge-multiple: true
-
-      - name: Generate checksums
-        working-directory: release-assets
-        run: sha256sum *.zip > SHA256SUMS.txt
 
       - name: Generate WinGet manifests from final release packages
         run: |
           python3 -m unittest discover -s scripts -p test_generate_winget.py
           python3 scripts/generate_winget.py --assets release-assets --output build/winget --archive release-assets/winget-manifests.zip
 
+      - name: Generate checksums
+        working-directory: release-assets
+        run: sha256sum *.zip *.exe > SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: |
-            release-assets/jietuba_*.zip
+            release-assets/${{ needs.check-version.outputs.brand }}_*.zip
+            release-assets/${{ needs.check-version.outputs.brand }}_setup-*.exe
             release-assets/SHA256SUMS.txt
             release-assets/winget-manifests.zip
           generate_release_notes: true
-          # 先建草稿：发布说明审过、发布包验过之后再公开
-          draft: true
+          draft: false
