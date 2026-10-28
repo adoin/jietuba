@@ -1,4 +1,5 @@
 #include "gif/composer.h"
+#include "core/brand_config.h"
 #include "core/i18n.h"
 #include "core/logger.h"
 #include "gif/_widgets.h"
@@ -47,7 +48,7 @@ ComposeResult ComposeWorker::compose() {
     const bool need_bytes = !options_.path.has_value();
     QString out_path;
     if (need_bytes) {
-        QTemporaryFile temp(QDir(QDir::tempPath()).filePath("jietuba_XXXXXX.gif"));
+        QTemporaryFile temp(QDir(QDir::tempPath()).filePath(QStringLiteral(JTM_NAME "_XXXXXX.gif")));
         temp.setAutoRemove(false);
         if (!temp.open()) throw std::runtime_error(temp.errorString().toStdString());
         out_path = temp.fileName();

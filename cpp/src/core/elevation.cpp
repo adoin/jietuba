@@ -20,7 +20,7 @@ namespace {
 const char TASK_XML[] = R"(<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Jietuba</Description>
+    <Description>{brand}</Description>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
@@ -236,11 +236,12 @@ QString elevation_state() {
 
 QString task_name() {
     const QString user = user_name();
-    return QString("Jietuba RunAsAdmin (%1)").arg(user.mid(user.lastIndexOf('\\') + 1));
+    return QStringLiteral(JTM_DISPLAY_NAME " RunAsAdmin (%1)").arg(user.mid(user.lastIndexOf('\\') + 1));
 }
 
 QString build_task_xml(const QString &command, const QString &user) {
     return QString::fromUtf8(TASK_XML)
+        .replace("{brand}", escape(QStringLiteral(JTM_DISPLAY_NAME)))
         .replace("{user}", escape(user))
         .replace("{command}", escape(command))
         .replace("{workdir}", escape(dirname(command)));
@@ -269,7 +270,7 @@ bool points_to_self(const std::optional<QString> &command) {
 bool install_task() {
     // A plain file closed before schtasks runs: QTemporaryFile keeps its handle open after
     // close(), and schtasks cannot open a file another process holds for writing.
-    const QString path = QDir::toNativeSeparators(QDir::temp().filePath(QString("jietuba_task_%1.xml").arg(QCoreApplication::applicationPid())));
+    const QString path = QDir::toNativeSeparators(QDir::temp().filePath(QStringLiteral(JTM_NAME "_task_%1.xml").arg(QCoreApplication::applicationPid())));
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         log_exception(file.errorString(), T("创建管理员计划任务"));

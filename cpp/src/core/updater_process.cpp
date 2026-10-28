@@ -166,13 +166,13 @@ QString UpdaterProcess::error_text(const QJsonObject &payload) const {
     if (code == "archive" || code == "size" || code == "architecture") return tr_process("The downloaded package is invalid.");
     if (code == "version") return tr_process("The downloaded update does not match this installation.");
     if (code == "busy") return tr_process("Another update or recovery is already running.");
-    if (code == "pending_recovery") return tr_process("An earlier update was not finished. Recover it from the .jietuba-update folder first.");
+    if (code == "pending_recovery") return tr_process("An earlier update was not finished. Recover it from the .jietuba-update folder first.").replace(".jietuba-update", QStringLiteral("." JTM_NAME "-update"));
     if (code == "file_in_use" || code == "process" || code == "exit_timeout")
         return tr_process("The application did not close or its file is in use. Close it and try again.");
     if (code == "permission") return tr_process("No permission to write to the installation folder.");
     if (code == "conflict") return tr_process("The application file was changed by another program. The update was stopped.");
     if (code == "recovery_failed")
-        return tr_process("The previous version could not be restored automatically. Its backup was kept in the .jietuba-update folder.");
+        return tr_process("The previous version could not be restored automatically. Its backup was kept in the .jietuba-update folder.").replace(".jietuba-update", QStringLiteral("." JTM_NAME "-update"));
     if (code == "cancelled" || code == "timeout") return tr_process("The update was cancelled.");
     return tr_process("The updater stopped with an error (%1).").replace("%1", code.isEmpty() ? QStringLiteral("unknown") : code);
 }

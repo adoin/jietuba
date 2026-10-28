@@ -14,7 +14,7 @@
 #include <shlobj.h>
 
 namespace jietuba::clipboard {
-const QString ItemDragMimeData::FILES_MIME = QStringLiteral("application/x-jietuba-drag-files");
+const QString ItemDragMimeData::FILES_MIME = QStringLiteral("application/x-" JTM_NAME "-drag-files");
 
 namespace {
 const QString IMAGE_MIME = QStringLiteral("application/x-qt-image");
@@ -196,5 +196,5 @@ void ItemDragMimeData::remove_stale_folders(const QString &temp_root, int max_ag
         if (info.lastModified() <= cutoff) QDir(info.absoluteFilePath()).removeRecursively();
 }
 
-QString ItemDragMimeData::default_temp_root() { return QDir::temp().filePath("jietuba_drag"); }
+QString ItemDragMimeData::default_temp_root() { return QDir::temp().filePath(QStringLiteral(JTM_NAME "_drag")); }
 }

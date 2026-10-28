@@ -1,4 +1,5 @@
 #pragma once
+#include "core/brand_config.h"
 #include <QColor>
 #include <QDateTime>
 #include <QJsonObject>
@@ -18,7 +19,7 @@ inline const QString SUB_KIND_COLOR = QStringLiteral("color");
 inline const QString SUB_KIND_PATH = QStringLiteral("path");
 
 // A source app in a FilterRule standing for every build of this application.
-inline const QString OWN_SOURCE_APP = QStringLiteral("jietuba");
+inline const QString OWN_SOURCE_APP = QStringLiteral(JTM_NAME);
 
 // What a filter group, or the history's type filter, selects; both parts must match when set.
 struct FilterRule {

@@ -1,4 +1,5 @@
 #pragma once
+#include "core/brand_config.h"
 #include <QSet>
 #include <QSettings>
 #include <QString>
@@ -15,7 +16,7 @@ class ToolSettingsManager;
 
 namespace settings_transfer {
 // The JSON format earlier versions exported.
-inline const QString FILE_TAG = "jietuba-settings";
+inline const QString FILE_TAG = QStringLiteral(JTM_NAME "-settings");
 constexpr int FORMAT_VERSION = 1;
 // QSettings keys of the settings an import carries, sorted.
 const QStringList &IMPORTED_KEYS();

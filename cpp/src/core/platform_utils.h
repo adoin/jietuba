@@ -83,7 +83,7 @@ void disable_native_frame(quintptr hwnd);
 long long get_last_error();
 // The HKCU Run entry starting this program at sign-in. Shared with the Python version, like
 // the autostart_enabled setting: whichever version last turned it on starts at sign-in.
-inline const QString AUTOSTART_APP_NAME = "Jietuba";
+inline const QString AUTOSTART_APP_NAME = QStringLiteral(JTM_DISPLAY_NAME);
 inline constexpr wchar_t AUTOSTART_REG_KEY[] = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
 bool get_autostart();
 // The program the Run entry starts; nullopt without one.

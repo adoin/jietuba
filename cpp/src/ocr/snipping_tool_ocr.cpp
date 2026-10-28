@@ -1,4 +1,5 @@
 #include "ocr/snipping_tool_ocr.h"
+#include "core/brand_config.h"
 #include "core/constants.h"
 #include "ocr/ocr_line_geometry.h"
 // Generated at configure time from the oneocr package (CMakeLists.txt).
@@ -124,7 +125,7 @@ std::optional<std::pair<QString, QString>> find_snipping_tool() {
 QString snipping_tool_cache_root() {
     // Copies of system files rather than user data. Tests share one cache outside their
     // sandboxes: loaded DLLs cannot be deleted with a sandbox at exit.
-    if (!test_sandbox_dir().isEmpty()) return QDir(QDir::tempPath()).filePath("jietuba-oneocr-test-cache");
+    if (!test_sandbox_dir().isEmpty()) return QDir(QDir::tempPath()).filePath(QStringLiteral(JTM_NAME "-oneocr-test-cache"));
     return QDir(get_app_data_dir()).filePath("oneocr");
 }
 

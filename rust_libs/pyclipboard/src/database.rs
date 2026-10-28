@@ -276,7 +276,7 @@ impl Database {
                 "SELECT id, content, EXISTS(SELECT 1 FROM clipboard_formats f WHERE f.event_id = clipboard.id AND f.format_name = ?1)
                  FROM clipboard WHERE sub_kind IS NULL",
             ).map_err(fail)?;
-            let rows = stmt.query_map(params![text_kind::COLOR_MARKER_FORMAT], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            let rows = stmt.query_map(params![text_kind::color_marker_format()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
                 .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
                 .map_err(fail)?;
             rows
@@ -425,11 +425,11 @@ impl Database {
     /// 出现过的来源应用及条数，按条数从多到少；本程序的几种 exe 合并成 OWN_APP
     pub fn source_apps(&self) -> Result<Vec<(String, i64)>, String> {
         let mut stmt = self.conn.prepare(
-            "SELECT CASE WHEN source_app LIKE 'jietuba%' OR source_app LIKE ?2 THEN ?1 ELSE source_app END AS app, COUNT(*) AS n
+            "SELECT CASE WHEN source_app LIKE ?2 THEN ?1 ELSE source_app END AS app, COUNT(*) AS n
              FROM clipboard WHERE source_app IS NOT NULL AND source_app != ''
              GROUP BY app COLLATE NOCASE ORDER BY n DESC, app COLLATE NOCASE",
         ).map_err(|e| format!("查询来源失败: {}", e))?;
-        stmt.query_map(params![group_kind::OWN_APP, format!("{}%", group_kind::own_app_prefix())], |row| Ok((row.get(0)?, row.get(1)?)))
+        stmt.query_map(params![group_kind::own_app_prefix(), format!("{}%", group_kind::own_app_prefix())], |row| Ok((row.get(0)?, row.get(1)?)))
             .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
             .map_err(|e| format!("查询来源失败: {}", e))
     }
@@ -1720,9 +1720,9 @@ mod sub_kind_tests {
         assert!(matching(&db, FilterRule::kind("image")).is_empty());
         assert_eq!(matching(&db, rule(None, Some("Chrome.exe"))), vec!["https://a.com", "普通"]);
         assert_eq!(matching(&db, rule(Some("url"), Some("chrome.exe"))), vec!["https://a.com"]);
-        let mut own = matching(&db, rule(None, Some(group_kind::OWN_APP)));
+        let mut own = matching(&db, rule(None, Some(group_kind::own_app_prefix())));
         own.sort();
-        let mut expected = vec!["新名称取的", "开发版取的", "截图吧取的"];
+        let mut expected = vec!["新名称取的"];
         expected.sort();
         assert_eq!(own, expected);
         assert!(db.query_items(0, 50, None, &FilterRule::kind("email"), None, None).is_err());
@@ -1738,11 +1738,10 @@ mod sub_kind_tests {
         add_from(&db, "8", None);
         add_from(&db, "9", Some(&format!("{}_lite.exe", group_kind::own_app_prefix())));
         let apps = db.source_apps().unwrap();
-        assert_eq!(apps[0], (group_kind::OWN_APP.to_string(), 4));
-        assert_eq!(apps[1].1, 2);
-        assert!(apps[1].0.eq_ignore_ascii_case("chrome.exe"));
-        assert_eq!(apps[2], ("Code.exe".to_string(), 1));
-        assert_eq!(apps.len(), 3);
+        assert!(apps.iter().any(|(name, count)| name == group_kind::own_app_prefix() && *count == 1));
+        assert!(apps.iter().any(|(name, count)| name.eq_ignore_ascii_case("chrome.exe") && *count == 2));
+        assert!(apps.iter().any(|(name, count)| name == "jietuba_pp.exe" && *count == 1));
+        assert_eq!(apps.len(), 6);
     }
 
     #[test]
@@ -1800,10 +1799,10 @@ mod sub_kind_tests {
                  INSERT INTO clipboard (id, content, content_type, created_at, updated_at) VALUES
                      (1, 'https://a.com', 'text', 1, 1), (2, '12, 34, 56', 'text', 1, 1),
                      (3, '[1x1]', 'image', 1, 1), (4, '普通', 'text', 1, 1);
-                 INSERT INTO clipboard_formats (event_id, format_id, format_name, data) VALUES (2, 49999, 'Jietuba.Color', X'31');
                  INSERT INTO groups (name, created_at, item_order, group_type) VALUES
                      ('文字', 1, 1, 3), ('图片', 1, 2, 4), ('文件', 1, 3, 5), ('收藏', 1, 4, 0);"
             ).unwrap();
+            old.execute("INSERT INTO clipboard_formats (event_id, format_id, format_name, data) VALUES (2, 49999, ?1, X'31')", [text_kind::color_marker_format()]).unwrap();
         }
         let kinds = |db: &Database| -> Vec<String> { (1..=4).map(|id| sub_kind(db, id)).collect() };
         let rules = |db: &Database| -> Vec<(i64, Option<FilterRule>)> {

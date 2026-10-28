@@ -184,7 +184,7 @@ private slots:
         QVERIFY(!cases.isEmpty());
         for (const auto &value : cases) {
             const auto c = value.toObject();
-            QCOMPARE(elevation::build_task_xml(c["command"].toString(), c["user"].toString()), c["expected"].toString());
+            QCOMPARE(elevation::build_task_xml(c["command"].toString(), c["user"].toString()), c["expected"].toString().replace("<Description>Jietuba</Description>", QStringLiteral("<Description>" JTM_DISPLAY_NAME "</Description>")));
         }
     }
     void elevationInstallWritesUtf16WithBom() {
@@ -193,7 +193,7 @@ private slots:
         const QByteArray xml = fixture.fake->created_xml;
         QVERIFY(xml.startsWith(QByteArray("\xff\xfe", 2)));
         QCOMPARE(QString::fromUtf16(reinterpret_cast<const char16_t *>(xml.constData() + 2), (xml.size() - 2) / 2), elevation::build_task_xml(EXE, USER));
-        QCOMPARE(elevation::task_name(), QString("Jietuba RunAsAdmin (user)"));
+        QCOMPARE(elevation::task_name(), QStringLiteral(JTM_DISPLAY_NAME " RunAsAdmin (user)"));
     }
     void elevationQueryAndSelfMatch() {
         ElevationFixture fixture(elevation::ELEVATED);

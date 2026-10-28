@@ -30,7 +30,7 @@ pub fn install_exe(path: &Path) -> Result<PathBuf> {
     safe_join(&root, &filename.to_string_lossy())
 }
 pub fn root(executable: &Path) -> Result<PathBuf> {
-    let path = safe_join(executable.parent().unwrap(), ".jietuba-update")?;
+    let path = safe_join(executable.parent().unwrap(), &format!(".{}-update", env!("JTM_NAME")))?;
     fs::create_dir_all(&path)?;
     Ok(path)
 }

@@ -41,10 +41,10 @@
   #define DesktopDir "{autodesktop}"
 #endif
 #ifndef StartupValue
-  #define StartupValue "Jietuba"
+  #define StartupValue AppName
 #endif
 #ifndef AdminTaskName
-  #define AdminTaskName "Jietuba RunAsAdmin ({username})"
+  #define AdminTaskName AppName + " RunAsAdmin ({username})"
 #endif
 
 [Setup]

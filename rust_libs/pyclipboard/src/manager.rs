@@ -124,7 +124,7 @@ fn custom_format_summary(formats: &[(u32, String, Vec<u8>)]) -> Option<String> {
     use sha2::{Digest, Sha256};
     let mut entries: Vec<_> = formats.iter().filter(|(id, name, data)| {
         *id >= win_clipboard::FIRST_REGISTERED_FORMAT && capture_extra_format(name)
-            && name != text_kind::COLOR_MARKER_FORMAT && !data.is_empty()
+            && name != text_kind::color_marker_format() && !data.is_empty()
     }).collect();
     if entries.is_empty() { return None; }
     entries.sort_by(|a, b| a.1.cmp(&b.1));
@@ -168,7 +168,7 @@ fn capture_clipboard(window: &win_clipboard::ClipboardWindow) -> Option<Captured
         // 电子表格的公式只在这个格式里，HTML/RTF 里只有计算结果
         register_format("XML Spreadsheet"),
         // 取色标记跟着存下来，粘贴回去仍带着它，重判子类型时也认得出
-        register_format(text_kind::COLOR_MARKER_FORMAT),
+        register_format(text_kind::color_marker_format()),
     ];
     if !spreadsheet {
         wanted.extend([CF_DIB, CF_DIBV5, register_format("PNG"), register_format("Rich Text Format")]);
@@ -469,7 +469,8 @@ impl ClipboardManager {
         let path = db_path.unwrap_or_else(|| {
             dirs::data_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join("pyclipboard")
+                .join(crate::group_kind::own_app_prefix())
+                .join("clipboard")
                 .join("clipboard.db")
                 .to_string_lossy()
                 .to_string()
@@ -725,7 +726,7 @@ impl ClipboardManager {
                     // 附带的文件引用，或看图软件复制文件时附带的预览位图），
                     // 内容本质上还是图片，应按图片展示缩略图。
                     if let Some(text) = text_val {
-                        let color_marked = all_names.iter().any(|(_, name)| name == text_kind::COLOR_MARKER_FORMAT);
+                        let color_marked = all_names.iter().any(|(_, name)| name == text_kind::color_marker_format());
                         main_item = PyClipboardItem::new(0, text, "text".to_string());
                         main_item.sub_kind = text_kind::detect(&main_item.content, color_marked).to_string();
                         main_item.html_content = html_content;

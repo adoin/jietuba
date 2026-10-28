@@ -11,7 +11,13 @@ pub const PATH: &str = "path";
 
 /// 本程序取色时随文字一起写进剪贴板的格式。取色的输出格式可自定义（如 `255, 0, 0`），
 /// 不能靠文字认出来，带这个格式的文本直接记成颜色
-pub const COLOR_MARKER_FORMAT: &str = "Jietuba.Color";
+pub fn color_marker_format() -> &'static str {
+    static FORMAT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    FORMAT.get_or_init(|| {
+        let brand: serde_json::Value = serde_json::from_str(include_str!("../../../branding.json")).expect("invalid branding.json");
+        format!("{}.Color", brand["display_name"].as_str().expect("branding.display_name missing"))
+    })
+}
 
 /// 判定规则的版本，存在 PRAGMA user_version；规则改了就加一，打开库时重判全部文本
 pub const RULES_VERSION: i64 = 1;

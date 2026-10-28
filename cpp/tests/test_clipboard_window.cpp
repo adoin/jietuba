@@ -1304,7 +1304,7 @@ private slots:
         QFile encrypted(destination);
         QVERIFY(encrypted.open(QIODevice::ReadOnly));
         QVERIFY(!encrypted.readAll().contains("backup fixture"));
-        QVERIFY(QDir(env_.dir.path()).entryList({".jietuba-backup-*"}, QDir::Dirs | QDir::Hidden).isEmpty());
+        QVERIFY(QDir(env_.dir.path()).entryList({QStringLiteral("." JTM_NAME "-backup-*")}, QDir::Dirs | QDir::Hidden).isEmpty());
         QVERIFY(window->isVisible());
         answerer.stop();
         const QString old_db = manager().get_db_path().value_or(QString());

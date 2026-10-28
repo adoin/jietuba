@@ -99,38 +99,14 @@ private slots:
         QVERIFY(QDir::toNativeSeparators(data_location().dir).startsWith(QDir::toNativeSeparators(test_sandbox_dir())));
     }
 
-    void legacyDataIsCopiedOnceWithoutOverwriting() {
-        QTemporaryDir roaming;
-        QVERIFY(roaming.isValid());
-        const QDir root(roaming.path());
-        const QString legacy = root.filePath("Jietuba");
-        const QString target = root.filePath(QStringLiteral(JTM_DISPLAY_NAME));
-        write_file(QDir(legacy).filePath("settings.ini"), "original settings");
-        write_file(QDir(legacy).filePath("plugins/.data/example.json"), "plugin configuration");
-        write_file(QDir(legacy).filePath("plugins/example/plugin.json"), "plugin manifest");
-        QVERIFY(migrate_legacy_data(roaming.path()));
-        QFile copied(QDir(target).filePath("settings.ini"));
-        QVERIFY(copied.open(QIODevice::ReadOnly));
-        QCOMPARE(copied.readAll(), QByteArray("original settings"));
-        QVERIFY(QFileInfo::exists(QDir(target).filePath("plugins/.data/example.json")));
-        QVERIFY(QFileInfo::exists(QDir(target).filePath("plugins/example/plugin.json")));
-        QVERIFY(QFileInfo::exists(QDir(legacy).filePath("settings.ini")));
-        copied.close();
-        write_file(QDir(target).filePath("settings.ini"), "new settings");
-        QVERIFY(migrate_legacy_data(roaming.path()));
-        QVERIFY(copied.open(QIODevice::ReadOnly));
-        QCOMPARE(copied.readAll(), QByteArray("new settings"));
-    }
-
-    void migrationDoesNotOverwriteAnExistingFile() {
+    void oldDataIsNotImported() {
         QTemporaryDir roaming;
         const QDir root(roaming.path());
         write_file(root.filePath("Jietuba/settings.ini"), "original");
-        write_file(root.filePath(QStringLiteral(JTM_DISPLAY_NAME)), "existing file");
-        QVERIFY(!migrate_legacy_data(roaming.path()));
-        QFile existing(root.filePath(QStringLiteral(JTM_DISPLAY_NAME)));
-        QVERIFY(existing.open(QIODevice::ReadOnly));
-        QCOMPARE(existing.readAll(), QByteArray("existing file"));
+        const auto location = resolve_data_location({}, roaming.path());
+        QCOMPARE(location.dir, root.filePath(QStringLiteral(JTM_DISPLAY_NAME)));
+        QVERIFY(!QFileInfo::exists(location.settings_file()));
+        QVERIFY(data_folder::sources_for(location).isEmpty());
         QVERIFY(QFileInfo::exists(root.filePath("Jietuba/settings.ini")));
     }
 
@@ -139,7 +115,7 @@ private slots:
         const QSet<QString> expected{"app/screenshot_save_path", "app/save_dialog_last_dir", "clipboard/db_path", "app/log_dir",
                                      "app/autostart_enabled", "app/run_as_admin", "app/has_run_before", "app/welcome_wizard_done"};
         QCOMPARE(LOCAL_SETTING_PATHS(), expected);
-        QCOMPARE(LOCAL_SETTINGS_KEY, QString("HKEY_CURRENT_USER\\Software\\Jietuba\\ToolSettings"));
+        QCOMPARE(LOCAL_SETTINGS_KEY, QStringLiteral("HKEY_CURRENT_USER\\Software\\" JTM_DISPLAY_NAME "\\ToolSettings"));
     }
 
     // Local settings are read and written in the registry, the rest in the settings file; deleting the
@@ -172,12 +148,9 @@ private slots:
         QCOMPARE(config.get_hotkey(), config.app_defaults().value("hotkey").toString());
     }
 
-    void olderStoresAreTheRegistry() {
+    void noLegacyStoresAreImported() {
         const auto installed = data_folder::sources_for({"C:/Users/u/AppData/Roaming/Jietuba", false});
-        QCOMPARE(installed.size(), 1);
-        QCOMPARE(installed[0].settings, QString("HKEY_CURRENT_USER\\Software\\Jietuba\\ToolSettings"));
-        QCOMPARE(installed[0].clipboard_window, QString("HKEY_CURRENT_USER\\Software\\Jietuba\\ClipboardWindow"));
-        QCOMPARE(installed[0].migrated, QString("HKEY_CURRENT_USER\\Software\\Jietuba\\Migrated"));
+        QVERIFY(installed.isEmpty());
         // A settings file beside the program, even empty, is used as it is.
         QVERIFY(data_folder::sources_for({"D:/tools/jietuba", true}).isEmpty());
         // Tests never read the user's registry.

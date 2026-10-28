@@ -1059,8 +1059,8 @@ private slots:
         const QString path = dir_.filePath("export.json");
         QFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));
-        file.write(R"({"format": "jietuba-settings", "version": 1, "app_version": "2.1.7",
-                      "settings": {"app/log_level": "WARNING", "app/screenshot_save_path": "D:\\captures"}})");
+        file.write("{\"format\":\"" JTM_NAME "-settings\",\"version\":1,\"app_version\":\"2.1.7\","
+                   "\"settings\":{\"app/log_level\":\"WARNING\",\"app/screenshot_save_path\":\"D:\\\\captures\"}}");
         file.close();
         const auto values = settings_transfer::read_settings_file(path);
         QCOMPARE(values.value("app/log_level").toString(), QString("WARNING"));

@@ -96,7 +96,7 @@ Both packages prefer the Snipping Tool OCR by default (faster, more languages); 
 > Both packages share settings and clipboard history, so you can switch between them, but do not run both at once: the default hotkeys conflict.
 
 > [!TIP]
-> Settings are kept in `%APPDATA%\Jietuma\settings.ini`. Put a `settings.ini` next to the exe (an empty file is enough) and the program uses that one instead, so copying the program folder takes the settings along. Settings that only make sense on this computer, such as the screenshot save folder, the clipboard history location and autostart, stay in the registry; the clipboard history is in `%APPDATA%\pyclipboard` by default and can be moved on the Clipboard page of the settings.
+> Settings are kept in `%APPDATA%\Jietuma\settings.ini`. Put a `settings.ini` next to the exe (an empty file is enough) and the program uses that one instead, so copying the program folder takes the settings along. Settings that only make sense on this computer, such as the screenshot save folder, the clipboard history location and autostart, stay in the registry; the clipboard history is in `%APPDATA%\Jietuma\clipboard` by default and can be moved on the Clipboard page of the settings.
 
 ### Updates
 

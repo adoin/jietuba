@@ -205,7 +205,7 @@ pub unsafe extern "C" fn jb_clipboard_parse_color(text: *const c_char, out_rgba:
 #[no_mangle]
 pub extern "C" fn jb_clipboard_color_marker_format() -> *const c_char {
     static NAME: std::sync::OnceLock<CString> = std::sync::OnceLock::new();
-    guard(std::ptr::null(), || NAME.get_or_init(|| CString::new(text_kind::COLOR_MARKER_FORMAT).unwrap_or_default()).as_ptr())
+    guard(std::ptr::null(), || NAME.get_or_init(|| CString::new(text_kind::color_marker_format()).unwrap_or_default()).as_ptr())
 }
 
 /// The paths in a path item's text as a JSON array (free with jb_clipboard_text_free); empty for other text.

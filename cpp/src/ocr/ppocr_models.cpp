@@ -1,4 +1,5 @@
 #include "ocr/ppocr_models.h"
+#include "core/brand_config.h"
 #include "core/constants.h"
 #include "core/i18n.h"
 #include "core/logger.h"
@@ -144,7 +145,7 @@ bool ModelDownload::start(const QString &catalog_id) {
         if (!entry) return false;
         files = entry->value("files").toArray();
     }
-    QTemporaryFile request(QDir(QDir::tempPath()).filePath("jietuba-model-XXXXXX.json"));
+    QTemporaryFile request(QDir(QDir::tempPath()).filePath(QStringLiteral(JTM_NAME "-model-XXXXXX.json")));
     if (!request.open()) return false;
     const QByteArray data = QJsonDocument(QJsonObject{{"staging", catalog_id}, {"files", files}}).toJson(QJsonDocument::Compact);
     if (request.write(data) != data.size() || !request.flush()) return false;

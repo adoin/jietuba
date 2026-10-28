@@ -281,7 +281,7 @@ private slots:
         auto child = start_child("--crash-native", app_data);
         QVERIFY(child->waitForFinished(30000));
         QVERIFY(child->exitStatus() == QProcess::CrashExit || child->exitCode() != 0);
-        const auto log = read_all(QDir(app_data).filePath("Jietuba/Logs/" + FAULT_LOG_NAME));
+        const auto log = read_all(QDir(app_data).filePath(QStringLiteral(JTM_DISPLAY_NAME "/Logs/") + FAULT_LOG_NAME));
         QVERIFY2(log.contains("--- session"), qPrintable(log));
         QVERIFY2(log.contains("Windows fatal exception: code 0xc0000005"), qPrintable(log));
         QVERIFY(log.contains("Native stack"));
@@ -294,7 +294,7 @@ private slots:
         auto child = start_child("--crash-throw", app_data);
         QVERIFY(child->waitForFinished(30000));
         QVERIFY(child->exitStatus() == QProcess::CrashExit || child->exitCode() != 0);
-        const auto log = read_all(QDir(app_data).filePath("Jietuba/Logs/" + CRASH_LOG_NAME));
+        const auto log = read_all(QDir(app_data).filePath(QStringLiteral(JTM_DISPLAY_NAME "/Logs/") + CRASH_LOG_NAME));
         QVERIFY2(log.contains("boom from the test"), qPrintable(log));
         QVERIFY(log.contains("runtime_error"));
     }
@@ -304,7 +304,7 @@ private slots:
         qputenv("LOCALAPPDATA", dir_.filePath("direct").toLocal8Bit());
         write_crash("test tag", "line one\n");
         qputenv("LOCALAPPDATA", saved);
-        const auto log = read_all(dir_.filePath("direct/Jietuba/Logs/" + CRASH_LOG_NAME));
+        const auto log = read_all(dir_.filePath(QStringLiteral("direct/" JTM_DISPLAY_NAME "/Logs/") + CRASH_LOG_NAME));
         QVERIFY(log.contains("test tag"));
         QVERIFY(log.contains("line one"));
     }

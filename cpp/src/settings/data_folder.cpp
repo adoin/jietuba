@@ -59,8 +59,8 @@ std::unique_ptr<QSettings> open_store(const QString &path) {
 }
 
 QList<Source> sources_for(const DataLocation &target) {
-    if (target.beside_program) return {};
-    return {{LOCAL_SETTINGS_KEY, REGISTRY_ROOT + "Software\\Jietuba\\ClipboardWindow", REGISTRY_ROOT + "Software\\Jietuba\\Migrated"}};
+    Q_UNUSED(target);
+    return {};
 }
 
 QList<Source> default_sources(const DataLocation &target) {

@@ -109,11 +109,10 @@ void ClipboardManager::drop_backend() {
 }
 
 QString ClipboardManager::default_db_path() {
-    // The backend's own default, which the reference gets by passing no path: the roaming
-    // data folder (%APPDATA%), shared with the Python version.
+    // Each branded build has an independent history database.
     QString base = qEnvironmentVariable("APPDATA");
     if (base.isEmpty()) base = QDir(QDir::homePath()).filePath("AppData/Roaming");
-    return QDir::toNativeSeparators(QDir(base).filePath("pyclipboard/clipboard.db"));
+    return QDir::toNativeSeparators(QDir(base).filePath(QStringLiteral(JTM_DISPLAY_NAME "/clipboard/clipboard.db")));
 }
 
 QString ClipboardManager::resolve_db_path(const QString &db_path) const {

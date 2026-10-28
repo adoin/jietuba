@@ -163,7 +163,7 @@ void backup_clipboard(QWidget *parent, clipboard::ClipboardManager &manager) {
     if (overwrite && !show_confirm_dialog(parent, tr("Backup Clipboard"), tr("Replace the existing backup file?"))) return;
     const auto password = ask_password(parent, true);
     if (!password) return;
-    QTemporaryDir staging(QDir(QFileInfo(destination).absolutePath()).filePath(".jietuba-backup-XXXXXX"));
+    QTemporaryDir staging(QDir(QFileInfo(destination).absolutePath()).filePath(QStringLiteral("." JTM_NAME "-backup-XXXXXX")));
     if (!staging.isValid()) { show_warning_dialog(parent, tr("Clipboard Backup"), tr("Could not prepare the backup.")); return; }
     const QJsonObject request{{"operation", "export"}, {"db_path", *db},
                               {"images_dir", *images}, {"destination", destination}, {"staging", staging.path()}, {"password", *password}, {"overwrite", overwrite}};
@@ -185,7 +185,7 @@ void restore_clipboard(QWidget *parent, clipboard::ClipboardManager &manager) {
     if (folder.isEmpty()) return;
     const auto password = ask_password(parent, false);
     if (!password) return;
-    QTemporaryDir staging(QDir(folder).filePath(".jietuba-restore-XXXXXX"));
+    QTemporaryDir staging(QDir(folder).filePath(QStringLiteral("." JTM_NAME "-restore-XXXXXX")));
     if (!staging.isValid()) { show_warning_dialog(parent, tr("Clipboard Backup"), tr("Could not create the restore folder.")); return; }
     const QJsonObject request{{"operation", "restore"}, {"source", source},
                               {"staging", staging.path()}, {"password", *password}};

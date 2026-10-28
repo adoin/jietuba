@@ -2,7 +2,7 @@
 #include <QString>
 
 // Best-effort cleanup of updater-owned cache files, never installation backups. The cache is
-// %LOCALAPPDATA%\jietuba\updater, shared with the Python version; failures throw
+// %LOCALAPPDATA%\<brand>\updater; failures throw
 // std::runtime_error where the original raises OSError.
 namespace jietuba::update_cache {
 QString cache_root();
