@@ -1,0 +1,6 @@
+# Rust workspace build artifacts
+/rust_libs/target/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
