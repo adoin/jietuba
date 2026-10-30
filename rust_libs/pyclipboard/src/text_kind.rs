@@ -2,6 +2,7 @@
 //!
 //! 只认整条内容就是一个链接、颜色或路径的文本，宁漏不误：一段话里夹着链接仍是普通文本。
 //! 判定不访问文件系统，监听线程上查网络路径是否存在可能卡住几秒。
+//! 规则改了要把 database::SUB_KIND_RULES_VERSION 加一，旧记录打开库时重判。
 
 /// 判过、是普通文本；图片和文件也写这个。NULL 才表示还没判
 pub const PLAIN: &str = "";
@@ -18,9 +19,6 @@ pub fn color_marker_format() -> &'static str {
         format!("{}.Color", brand["display_name"].as_str().expect("branding.display_name missing"))
     })
 }
-
-/// 判定规则的版本，存在 PRAGMA user_version；规则改了就加一，打开库时重判全部文本
-pub const RULES_VERSION: i64 = 1;
 
 /// 超过这个长度的文本不可能是链接、颜色或单个路径，不再逐字检查
 const MAX_LEN: usize = 4096;

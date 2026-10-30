@@ -76,6 +76,12 @@ ScreenshotShortcutHandler::ScreenshotShortcutHandler(ScreenshotWindow *window) :
     move_keys_ = load_move_keys();
 }
 
+bool ScreenshotShortcutHandler::owns_window(const QWidget *candidate) const {
+    for (auto *widget = candidate; widget; widget = widget->parentWidget())
+        if (widget == window) return true;
+    return false;
+}
+
 bool ScreenshotShortcutHandler::is_active() {
     auto *w = window;
     return w && !w->is_closing && w->isVisible() && blocking_modal(w) == nullptr;
@@ -101,7 +107,7 @@ bool ScreenshotShortcutHandler::handle_mouse(QMouseEvent *event) {
     if (event->button() == Qt::MiddleButton) {
         auto *view = w->view;
         auto action = w->matching_capture_mouse_action(event, "middle");
-        // While editing text only close applies, like Esc.
+        // While editing text only close applies.
         if (action && *action != "close" && w->is_text_editing()) action.reset();
         if (action && view && view->viewport()->rect().contains(view->viewport()->mapFromGlobal(event->globalPosition().toPoint())) &&
             w->action_handler->handle_capture_action(*action))
@@ -121,9 +127,11 @@ bool ScreenshotShortcutHandler::handle_key(QInputEvent *event) {
         if (key == Qt::Key_C || key == Qt::Key_D) return false;
         if ((key == Qt::Key_Z || key == Qt::Key_Y) && event->modifiers() == Qt::ControlModifier) return false;
     }
-    // Esc is fixed.
+    // Esc is fixed: it leaves the text being typed first, so the annotations made so far are kept.
     if (key == Qt::Key_Escape) {
-        w->cleanup_and_close();
+        auto *text_item = is_text_editing && w->view ? w->view->get_active_text_item() : nullptr;
+        if (text_item) w->view->end_text_edit(text_item);
+        else w->cleanup_and_close();
         return true;
     }
     if (match(event, "inapp_restore_last_region") && restore_last_region()) return true;
@@ -339,8 +347,9 @@ ScreenshotWindow::~ScreenshotWindow() {
 }
 
 void ScreenshotWindow::begin_session_ui() {
-    // Pin windows stay out of the topmost band during the capture, so equal TopMost windows do not fight over Z order.
-    PinManager::instance()->suppress_topmost();
+    // The pins keep their place below the capture window, which shows after them; one pinned during the
+    // capture goes right below it.
+    PinManager::instance()->begin_capture(this);
     shortcut_handler_ = std::make_unique<ScreenshotShortcutHandler>(this);
     ShortcutManager::instance()->register_handler(shortcut_handler_.get());
     session_active_ = true;
@@ -408,18 +417,35 @@ void ScreenshotWindow::teardown_session() {
     }
     if (initial_selection_gate_) initial_selection_gate_->cancel();
     hide();
+    // A handed-over capture has told the hub already.
+    const bool ended = handover_ != nullptr;
     try {
         release_session_resources();
     } catch (...) {
         // Copying may have hidden the window early; the input hub must hear the session
         // end even when cleanup fails, or quick capture stays blocked.
-        emit session_ended();
+        if (!ended) emit session_ended();
         throw;
     }
-    emit session_ended();
+    if (!ended) emit session_ended();
+}
+
+QObject *ScreenshotWindow::hand_over() {
+    // An extension can reject export. Keep its capture alive and visible for retry.
+    if (plugins::has_extension_hooks("screenshot.before_export") || !plugins::toolbar_contributions("screenshot").isEmpty()) return this;
+    if (!handover_ && session_active_) {
+        handover_ = new QObject(this);
+        hide();
+        PinManager::instance()->end_capture();
+        emit session_ended();
+    }
+    return handover_ ? handover_ : this;
 }
 
 void ScreenshotWindow::release_session_resources() {
+    // What still waits on the scene is dropped before the scene goes.
+    delete handover_;
+    handover_ = nullptr;
     remember_watermark();
     // Visible to capture APIs again.
     if (exclude_from_capture_set) {
@@ -432,7 +458,7 @@ void ScreenshotWindow::release_session_resources() {
         // The handler may be the one dispatching this key (Esc), so it is destroyed only after the dispatch returns.
         QTimer::singleShot(0, qApp, [handler = std::shared_ptr<ScreenshotShortcutHandler>(shortcut_handler_.release())] {});
     }
-    PinManager::instance()->restore_topmost();
+    PinManager::instance()->end_capture();
     // The toolbar goes with this window; nothing it emits meanwhile may reach the released scene.
     if (toolbar) toolbar->blockSignals(true);
     original_image = QImage();
@@ -561,6 +587,8 @@ void ScreenshotWindow::pin_from_global_hotkey() {
 
 void ScreenshotWindow::safe_activate_and_focus() {
     if (is_closing || !isVisible()) return;
+    // Only when no window of ours took the activation: this one being typed in, or one opened over it, keeps its focus.
+    if (QApplication::activeWindow()) return;
     activateWindow();
     setFocus();
 }
@@ -628,29 +656,30 @@ void ScreenshotWindow::run_plugin_toolbar_action(const QString &plugin, const QS
     if (found == contributions.cend()) return;
     const auto steps = found->pipeline;
     const QRectF rect = scene->selection_model->rect();
-    const auto image = action_handler->export_selection_for_plugin();
     const QString action = "plugin." + plugin + "." + id;
-    prepare_plugin_output(image, rect, action, [this, rect, action, steps](QImage prepared) {
-        const auto payload = plugins::image_payload(prepared);
-        if (payload.isEmpty()) { show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow")); return; }
-        plugin_processing_ = true;
-        toolbar->setEnabled(false);
-        view->setEnabled(false);
-        plugin_session_->pipeline(steps, payload, plugin_context(rect, action), this, [this, rect, action](plugins::ExtensionResult result) {
-            if (!session_active_ || is_closing) return;
-            plugin_processing_ = false;
-            if (toolbar) toolbar->setEnabled(true);
-            if (view) view->setEnabled(true);
-            if (!result.ok || (result.payload.value("kind").toString() != "image" && result.payload.value("kind").toString() != "text")) {
-                show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow") + "\n" + result.error);
-                return;
-            }
-            notify_plugin_export(result.payload, rect, action);
-            if (result.payload.value("kind").toString() == "image") {
-                const auto output = plugins::payload_image(result.payload);
-                deliver_screenshot(output, config_manager, true, "capture");
-            } else QApplication::clipboard()->setText(result.payload.value("data").toString());
-            cleanup_and_close();
+    action_handler->export_selection_for_plugin([this, rect, action, steps](QImage image) {
+        prepare_plugin_output(image, rect, action, [this, rect, action, steps](QImage prepared) {
+            const auto payload = plugins::image_payload(prepared);
+            if (payload.isEmpty()) { show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow")); return; }
+            plugin_processing_ = true;
+            toolbar->setEnabled(false);
+            view->setEnabled(false);
+            plugin_session_->pipeline(steps, payload, plugin_context(rect, action), this, [this, rect, action](plugins::ExtensionResult result) {
+                if (!session_active_ || is_closing) return;
+                plugin_processing_ = false;
+                if (toolbar) toolbar->setEnabled(true);
+                if (view) view->setEnabled(true);
+                if (!result.ok || (result.payload.value("kind").toString() != "image" && result.payload.value("kind").toString() != "text")) {
+                    show_warning_dialog(this, window_tr("Error"), i18n_tr("Plugin action failed.", "ClipboardWindow") + "\n" + result.error);
+                    return;
+                }
+                notify_plugin_export(result.payload, rect, action);
+                if (result.payload.value("kind").toString() == "image") {
+                    const auto output = plugins::payload_image(result.payload);
+                    deliver_screenshot(output, config_manager, true, "capture");
+                } else QApplication::clipboard()->setText(result.payload.value("data").toString());
+                cleanup_and_close();
+            });
         });
     });
 }
@@ -727,6 +756,13 @@ void ScreenshotWindow::cleanup_and_close() {
 void ScreenshotWindow::keyPressEvent(QKeyEvent *event) {
     // Shortcuts go through the ShortcutManager; this only passes text-editing keys on.
     QWidget::keyPressEvent(event);
+}
+
+QRect ScreenshotWindow::active_text_screen_rect() const {
+    auto *item = view ? view->get_active_text_item() : nullptr;
+    if (!item) return {};
+    const QRect in_view = view->mapFromScene(item->sceneBoundingRect()).boundingRect();
+    return QRect(view->viewport()->mapToGlobal(in_view.topLeft()), in_view.size());
 }
 
 bool ScreenshotWindow::is_text_editing() const {

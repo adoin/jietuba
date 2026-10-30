@@ -60,23 +60,6 @@ impl PyClipboardItem {
     }
 }
 
-/// 分页查询结果
-/// 
-/// 支持迭代和索引访问。
-/// 
-/// Attributes:
-///     total_count: 总记录数
-///     items: 当前页的数据列表
-///     offset: 偏移量
-///     limit: 每页数量
-///     has_more: 是否还有更多数据
-/// 
-/// Example:
-///     >>> result = manager.get_history()
-///     >>> print(len(result))  # 当前页数量
-///     >>> for item in result:  # 迭代
-///     ...     print(item.content)
-///     >>> first = result[0]  # 索引访问
 #[derive(Clone, Debug)]
 pub struct PyPaginatedResult {
     pub total_count: i64,

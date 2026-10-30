@@ -217,6 +217,15 @@ pub unsafe extern "C" fn jb_clipboard_text_paths(text: *const c_char) -> *mut c_
     })
 }
 
+/// Every kind a filter rule can name, as a JSON array (free with jb_clipboard_text_free): the content types,
+/// the text sub-kinds, then `file:` plus each file sub-kind.
+#[no_mangle]
+pub extern "C" fn jb_clipboard_filter_kinds() -> *mut c_char {
+    guard(std::ptr::null_mut(), || {
+        owned_text(&serde_json::to_string(&group_kind::filter_kinds()).unwrap_or_else(|_| "[]".to_string()))
+    })
+}
+
 /// Whether a group of `group_type` stores items of `content_type` with text sub-kind `sub_kind` (null for none).
 #[no_mangle]
 pub unsafe extern "C" fn jb_clipboard_group_accepts(group_type: i64, content_type: *const c_char, sub_kind: *const c_char) -> bool {
@@ -368,7 +377,7 @@ pub unsafe extern "C" fn jb_clipboard_get_history(
         let filter = FilterRule { kind: opt_string(kind), app: opt_string(app) };
         let result = manager.get_history(offset, limit, opt_string(search), &filter, opt_i64(start_time), opt_i64(end_time));
         finish(result, error, error_len, |page| {
-            put_text(&serde_json::to_string(&page.items).unwrap_or_else(|_| "[]".to_string()), out_json)
+            put_text(&serde_json::to_string(&page).unwrap_or_else(|_| "[]".to_string()), out_json)
         })
     })
 }
@@ -641,7 +650,7 @@ pub unsafe extern "C" fn jb_clipboard_get_by_group(
     guard_error(false, error, error_len, || {
         let manager = manager_or_fail!(ptr, error, error_len);
         finish(manager.get_by_group(opt_i64(group_id), offset, limit), error, error_len, |page| {
-            put_text(&serde_json::to_string(&page.items).unwrap_or_else(|_| "[]".to_string()), out_json)
+            put_text(&serde_json::to_string(&page).unwrap_or_else(|_| "[]".to_string()), out_json)
         })
     })
 }
