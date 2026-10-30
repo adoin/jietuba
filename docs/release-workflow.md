@@ -31,3 +31,5 @@ git push origin release-2.2.4
 安装包与程序共用 `branding.json` 和 `VERSION`。如果启用 SignPath 签名，还需配置 `SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION` 指向安装包对应的签名配置；不配置签名策略时生成的安装包未签名。
 
 不要覆盖、移动或强推已有标签。单独的 `lite.yml` 可手动构建测试制品，但不创建 Release。插件仓库使用 `v<版本>` 标签，详见插件仓库文档。
+
+若标签推送未触发 Actions，可从含新工作流的分支手动重试已有标签：`gh workflow run build.yml --ref feat/plugin-ecosystem -f release_tag=release-2.2.4`。入口会核对标签确实存在且等于其代码中的 `release-<VERSION>`；所有构建、打包和检查仍检出该标签，不把工作流分支的应用代码混入发布包。

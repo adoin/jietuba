@@ -5,6 +5,10 @@ name: Single exe packages
 # test builds of a branch.
 on:
   workflow_call:
+    inputs:
+      release_ref:
+        type: string
+        default: ""
   workflow_dispatch:
 
 permissions:
@@ -23,6 +27,8 @@ jobs:
       name: ${{ steps.brand.outputs.name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
       - id: brand
         shell: bash
         working-directory: .
@@ -33,6 +39,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
       - id: cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -51,6 +59,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cpp/.sdk/6.11.0/msvc2022_64_static
@@ -97,6 +107,8 @@ jobs:
       PACKAGE: ${{ needs.branding.outputs.name }}_${{ matrix.variant == 'full' && 'pp' || 'lite' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ${{ env.PACKAGE }}-cpp-${{ matrix.arch }}

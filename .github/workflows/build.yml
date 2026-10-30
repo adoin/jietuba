@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "release-*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Retry packaging an existing release-<VERSION> tag"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,28 +20,37 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       brand: ${{ steps.brand.outputs.name }}
+      tag: ${{ steps.brand.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - id: brand
-        run: echo "name=$(python3 -c 'import json; print(json.load(open("branding.json"))["name"])')" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          echo "name=$(python3 -c 'import json; print(json.load(open("branding.json"))["name"])')" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Check tag matches VERSION
-        if: startsWith(github.ref, 'refs/tags/')
         env:
-          REF_NAME: ${{ github.ref_name }}
+          REF_NAME: ${{ inputs.release_tag || github.ref_name }}
         run: |
           expected="release-$(tr -d '[:space:]' < VERSION)"
           if [ "$REF_NAME" != "$expected" ]; then
             echo "Tag $REF_NAME does not match VERSION (expected $expected)"
             exit 1
           fi
+          git show-ref --verify "refs/tags/$REF_NAME"
 
   # 轻量版和完整版：cpp/ 的 C++ 静态单 exe，完整版另内嵌 ONNX Runtime 并带默认 PP-OCR 模型
   lite:
     needs: check-version
     uses: ./.github/workflows/lite.yml
+    with:
+      release_ref: ${{ inputs.release_tag || github.ref }}
 
   package:
     needs: [lite, check-version]
@@ -55,6 +70,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       # 更新器按品牌配置生成的包名匹配，models/ 留在原处。
       - name: Download full build
@@ -168,25 +185,25 @@ jobs:
         if: vars.SIGNPATH_SIGNING_POLICY != ''
         shell: pwsh
         run: |
-          $name = "$($env:BRAND)_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe"
+          $name = "$($env:BRAND)_setup-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.exe"
           Copy-Item -LiteralPath "signed-installer/$name" -Destination "installers/$name" -Force
           if ((Get-AuthenticodeSignature -LiteralPath "installers/$name").Status -eq 'NotSigned') { throw 'Installer is not signed.' }
 
       - name: Package dist as zip
         run: |
-          Compress-Archive -Path dist\* -DestinationPath "$($env:PACKAGE_FULL)-${{ github.ref_name }}-${{ matrix.arch }}.zip"
-          Compress-Archive -Path dist_lite\* -DestinationPath "$($env:PACKAGE_LITE)-${{ github.ref_name }}-${{ matrix.arch }}.zip"
-          $installer = "$($env:BRAND)_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe"
+          Compress-Archive -Path dist\* -DestinationPath "$($env:PACKAGE_FULL)-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.zip"
+          Compress-Archive -Path dist_lite\* -DestinationPath "$($env:PACKAGE_LITE)-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.zip"
+          $installer = "$($env:BRAND)_setup-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.exe"
           Copy-Item -LiteralPath "installers/$installer" -Destination $installer
 
       - name: Upload build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ env.BRAND }}-${{ github.ref_name }}-${{ matrix.arch }}
+          name: ${{ env.BRAND }}-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}
           path: |
-            ${{ env.PACKAGE_FULL }}-${{ github.ref_name }}-${{ matrix.arch }}.zip
-            ${{ env.PACKAGE_LITE }}-${{ github.ref_name }}-${{ matrix.arch }}.zip
-            ${{ env.BRAND }}_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe
+            ${{ env.PACKAGE_FULL }}-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.zip
+            ${{ env.PACKAGE_LITE }}-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.zip
+            ${{ env.BRAND }}_setup-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.exe
 
   smoke-installer:
     needs: [package, check-version]
@@ -202,11 +219,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Download installer
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ${{ needs.check-version.outputs.brand }}-${{ github.ref_name }}-${{ matrix.arch }}
+          name: ${{ needs.check-version.outputs.brand }}-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}
           path: package
 
       - name: Test installation, upgrade and uninstall
@@ -214,22 +233,24 @@ jobs:
         run: |
           $scratch = Join-Path $env:RUNNER_TEMP 'installer-smoke'
           New-Item -ItemType Directory -Path $scratch -Force | Out-Null
-          ./scripts/smoke_installer.ps1 -Installer 'package/${{ needs.check-version.outputs.brand }}_setup-${{ github.ref_name }}-${{ matrix.arch }}.exe' -ScratchRoot $scratch
+          ./scripts/smoke_installer.ps1 -Installer 'package/${{ needs.check-version.outputs.brand }}_setup-${{ needs.check-version.outputs.tag }}-${{ matrix.arch }}.exe' -ScratchRoot $scratch
 
   release:
     needs: [package, check-version, smoke-installer]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release-')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/release-')) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: ${{ needs.check-version.outputs.brand }}-${{ github.ref_name }}-*
+          pattern: ${{ needs.check-version.outputs.brand }}-${{ needs.check-version.outputs.tag }}-*
           path: release-assets
           merge-multiple: true
 
@@ -250,5 +271,6 @@ jobs:
             release-assets/${{ needs.check-version.outputs.brand }}_setup-*.exe
             release-assets/SHA256SUMS.txt
             release-assets/winget-manifests.zip
+          tag_name: ${{ needs.check-version.outputs.tag }}
           generate_release_notes: true
           draft: false
