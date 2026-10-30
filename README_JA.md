@@ -6,9 +6,9 @@
 
 **Windows 向けスクリーンショット・OCR・ピン留め・翻訳・クリップボードツール**
 
-[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuba/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuba?style=flat-square)](https://github.com/adoin/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
+[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuma/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuma/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuma?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuma?style=flat-square)](https://github.com/adoin/jietuma/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
 
-[Windows 版をダウンロード](https://github.com/adoin/jietuba/releases/latest) · [ソースからビルド](#source-setup) · [開発とテスト](#development)
+[Windows 版をダウンロード](https://github.com/adoin/jietuma/releases/latest) · [ソースからビルド](#source-setup) · [開発とテスト](#development)
 
 [中文](README_zh-CN.md) | [English](README.md) | **日本語**
 
@@ -80,7 +80,7 @@ C++（Qt6）で実装し、画像処理・クリップボード・PP-OCR エン�
 
 ## ダウンロードと起動
 
-1. [Releases ページ](https://github.com/adoin/jietuba/releases/latest)を開き、端末に合わせて `-x64.zip` または `-arm64.zip` で終わるファイルをダウンロードします。ランタイムのインストールは不要です。
+1. [Releases ページ](https://github.com/adoin/jietuma/releases/latest)を開き、端末に合わせて `-x64.zip` または `-arm64.zip` で終わるファイルをダウンロードします。ランタイムのインストールは不要です。
 2. ZIP 全体を展開し、中の exe をダブルクリックして起動します。
 
 |  | 完全版 `{name}_pp-…zip` | 軽量版 `{name}_lite-…zip` |

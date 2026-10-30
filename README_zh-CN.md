@@ -6,9 +6,9 @@
 
 **Windows 截图、OCR、钉图、翻译与剪贴板工具**
 
-[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuba/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuba?style=flat-square)](https://github.com/adoin/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
+[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuma/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuma/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuma?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuma?style=flat-square)](https://github.com/adoin/jietuma/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
 
-[下载 Windows 版](https://github.com/adoin/jietuba/releases/latest) · [从源码构建](#source-setup) · [开发与测试](#development)
+[下载 Windows 版](https://github.com/adoin/jietuma/releases/latest) · [从源码构建](#source-setup) · [开发与测试](#development)
 
 **中文** | [English](README.md) | [日本語](README_JA.md)
 
@@ -78,7 +78,7 @@
 
 ## 下载与使用
 
-1. 打开 [Releases 下载页](https://github.com/adoin/jietuba/releases/latest)，按设备下载以 `-x64.zip` 或 `-arm64.zip` 结尾的程序包，无需安装运行环境。
+1. 打开 [Releases 下载页](https://github.com/adoin/jietuma/releases/latest)，按设备下载以 `-x64.zip` 或 `-arm64.zip` 结尾的程序包，无需安装运行环境。
 2. 完整解压后双击其中的 exe 启动。
 
 |  | 完整版 `{name}_pp-…zip` | 轻量版 `{name}_lite-…zip` |

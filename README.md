@@ -6,9 +6,9 @@
 
 **Screenshot, OCR, Pin, Translation & Clipboard Tool for Windows**
 
-[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuba/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuba/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuba?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuba?style=flat-square)](https://github.com/adoin/jietuba/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
+[![build](https://img.shields.io/github/actions/workflow/status/adoin/jietuma/cpp.yml?branch=feat%2Fplugin-ecosystem&label=build&style=flat-square)](https://github.com/adoin/jietuma/actions/workflows/cpp.yml) [![license](https://img.shields.io/github/license/adoin/jietuma?style=flat-square)](LICENSE) [![release](https://img.shields.io/github/v/release/adoin/jietuma?style=flat-square)](https://github.com/adoin/jietuma/releases/latest) ![platform](https://img.shields.io/badge/Windows-x64%20%7C%20ARM64-0078D4?style=flat-square)
 
-[Download for Windows](https://github.com/adoin/jietuba/releases/latest) · [Build from Source](#source-setup) · [Development and Tests](#development)
+[Download for Windows](https://github.com/adoin/jietuma/releases/latest) · [Build from Source](#source-setup) · [Development and Tests](#development)
 
 [中文](README_zh-CN.md) | **English** | [日本語](README_JA.md)
 
@@ -78,7 +78,7 @@ A smooth, three-way "screenshot ⇄ clipboard ⇄ pin" workflow.
 
 ## Download and Run
 
-1. Open the [Releases page](https://github.com/adoin/jietuba/releases/latest) and download the archive ending in `-x64.zip` or `-arm64.zip` for your device. No runtime needs installing.
+1. Open the [Releases page](https://github.com/adoin/jietuma/releases/latest) and download the archive ending in `-x64.zip` or `-arm64.zip` for your device. No runtime needs installing.
 2. Extract the entire archive and double-click the exe inside.
 
 |  | Full `{name}_pp-…zip` | Lite `{name}_lite-…zip` |
