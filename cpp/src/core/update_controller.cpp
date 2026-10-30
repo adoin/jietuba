@@ -2,6 +2,7 @@
 #include "core/update_cache.h"
 #include "main_app.h"
 #include "ui/update_dialog.h"
+#include "core/logger.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -19,6 +20,48 @@ UpdateController::UpdateController(UpdateHost *host, QObject *parent, UpdaterPro
     connect(runner, &UpdaterProcess::event_received, this, &UpdateController::on_event);
     connect(runner, &UpdaterProcess::failed, this, &UpdateController::on_error);
     connect(runner, &UpdaterProcess::finished, this, &UpdateController::on_finished);
+    automatic_checker_=new GitHubReleaseChecker(this);
+    automatic_checker_->setObjectName("automaticReleaseChecker");
+    automatic_timer_.setInterval(60000);
+    connect(&automatic_timer_,&QTimer::timeout,this,&UpdateController::automatic_tick);
+    connect(automatic_checker_,&GitHubReleaseChecker::release_found,this,[this](const ReleaseInfo &value) {
+        if(!automatic_enabled_) return;
+        try {
+            if(!value.asset_name.isEmpty() && value.available.value_or(true) && is_newer_version(value.tag_name,APP_VERSION)) {
+                automatic_pending_=value;automatic_tick();
+            }
+        } catch(const UpdateCheckError &) {}
+    });
+    connect(automatic_checker_,&GitHubReleaseChecker::failed,this,[](const QString &reason) {
+        log_warning(T("自动检查更新失败: {reason}",{{"reason",reason}}),"Update");
+    });
+}
+
+void UpdateController::set_automatic_updates(bool enabled) {
+    if(automatic_enabled_==enabled) return;
+    automatic_enabled_=enabled;
+    if(!enabled) {
+        automatic_timer_.stop();automatic_pending_.reset();
+        if(automatic_run_ && !committed_) cancel();
+        return;
+    }
+    next_check_={};automatic_timer_.start();
+    QTimer::singleShot(15000,this,&UpdateController::automatic_tick);
+}
+
+void UpdateController::automatic_tick() {
+    if(!automatic_enabled_ || committed_ || !updater_bundled() || runner->busy()) return;
+    if(automatic_run_ && !downloaded.isEmpty()) {
+        if(host_->automatic_update_ready()) install();
+        return;
+    }
+    if(automatic_pending_) {
+        if(!host_->automatic_update_ready() || (dialog && dialog->isVisible())) return;
+        const auto value=*automatic_pending_;automatic_pending_.reset();present(value);automatic_run_=true;start();return;
+    }
+    if(automatic_checker_->is_checking() || (next_check_.isValid() && QDateTime::currentDateTimeUtc()<next_check_)) return;
+    next_check_=QDateTime::currentDateTimeUtc().addSecs(6*60*60);
+    automatic_checker_->check();
 }
 
 UpdateController::~UpdateController() { delete dialog; }
@@ -38,10 +81,11 @@ void UpdateController::present(const ReleaseInfo &value) {
     }
     if (dialog) dialog->deleteLater();
     discard_download();
+    automatic_run_=false;
     release = value;
     downloaded.clear();
     dialog = new UpdateDialog(value);
-    connect(dialog, &UpdateDialog::update_requested, this, &UpdateController::start);
+    connect(dialog, &UpdateDialog::update_requested, this, [this]{automatic_run_=false;start();});
     connect(dialog, &UpdateDialog::cancel_requested, this, &UpdateController::cancel);
     dialog->show();
 }
@@ -84,6 +128,12 @@ void UpdateController::start() {
 }
 
 void UpdateController::install() {
+    if(automatic_run_ && !host_->automatic_update_ready()) {
+        mode="waiting";
+        dialog->set_working(false);
+        dialog->status->setText(tr_controller("The update will install when application windows and pinned images are closed."));
+        return;
+    }
     const QString reason = host_->update_busy_reason();
     if (!reason.isEmpty()) {
         on_error(reason);
@@ -110,6 +160,13 @@ void UpdateController::on_event(const QString &event, const QString &transaction
     } else if (event == "downloaded") {
         downloaded = transaction;
     } else if (event == "ready") {
+        // Recheck after staging: the user may have opened a pin or a window
+        // while the helper was preparing the update.
+        if(automatic_run_ && !host_->automatic_update_ready()) {
+            on_error(tr_controller("Update handoff failed."));
+            runner->cancel();
+            return;
+        }
         const auto [ok, reason] = host_->prepare_for_update();
         if (ok && runner->send("go")) {
             dialog->committed = true;
@@ -125,6 +182,7 @@ void UpdateController::on_event(const QString &event, const QString &transaction
 
 void UpdateController::on_error(const QString &reason) {
     failed_ = true;
+    automatic_run_=false;
     host_->cancel_update_preparation();
     if (dialog) {
         dialog->committed = false;
@@ -146,6 +204,7 @@ void UpdateController::on_finished() {
 
 void UpdateController::cancel() {
     if (committed_ || (dialog && dialog->committed)) return;
+    automatic_run_=false;automatic_pending_.reset();
     cancelled_ = true;
     runner->cancel();
     host_->cancel_update_preparation();

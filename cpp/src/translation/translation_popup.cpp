@@ -1,3 +1,5 @@
+#include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "translation/translation_popup.h"
 #include "core/i18n.h"
 #include "core/ui_scale.h"
@@ -314,9 +316,10 @@ void TranslationPopup::set_backend_status(const QString &name, bool ready) {
 }
 
 void TranslationPopup::set_theme(const QString &theme_name) {
+    setProperty("_materialDark", theme_name != "light");
     palette_ = theme_name == "light" ? &dashboard_light() : &dashboard_dark();
     for (auto *button : {speak_source_button, speak_result_button}) button->apply_palette(*palette_);
-    setStyleSheet(fill_dashboard_sheet(R"(
+    apply_style_sheet(this, fill_dashboard_sheet(R"(
             QWidget#translationPopup { background: transparent; color: @text; }
             QLabel#popupBadge {
                 color: @green; background: @accent_tint; border-radius: @s7px;
@@ -340,7 +343,7 @@ void TranslationPopup::set_theme(const QString &theme_name) {
                 padding: @s2px @s3px; font-size: @s14px; font-weight: 550;
             }
             QTextEdit#popupResult[error="true"] { color: @danger; font-weight: 500; }
-            QFrame#popupDivider { background: @fill_hover; border: none; }
+            QFrame#popupDivider { background: transparent; border: none; }
             QLabel#popupLangLabel {
                 color: @text_3; font-size: @s11px; padding-left: @s3px;
             }
@@ -479,19 +482,7 @@ void TranslationPopup::hide_popup() {
 }
 
 void TranslationPopup::paintEvent(QPaintEvent *) {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(rect(), Qt::transparent);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    const int stroke_width = std::max(1, dialog_scaled(1));
-    const double inset = stroke_width / 2.0;
-    const auto area = QRectF(rect()).adjusted(inset, inset, -inset, -inset);
-    painter.setPen(QPen(palette_->fill_hover_color, stroke_width));
-    painter.setBrush(QColor(palette_->window));
-    const int radius = dialog_scaled(WINDOW_CORNER_RADIUS);
-    painter.drawRoundedRect(area, radius, radius);
+    paint_material_window(this, dialog_scaled(WINDOW_CORNER_RADIUS));
 }
 
 void TranslationPopup::mousePressEvent(QMouseEvent *event) {

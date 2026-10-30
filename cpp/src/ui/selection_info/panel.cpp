@@ -84,7 +84,7 @@ void SelectionInfoPanel::apply_scale() {
     for (auto *button : buttons_) {
         button->setFixedSize(btn_sz, btn_sz);
         button->setIconSize(QSize(icon_sz, icon_sz));
-        button->setStyleSheet(QString(R"(
+        apply_style_sheet(button, QString(R"(
                 QPushButton { background: transparent; border: none;
                                border-radius: %1px; padding: %2px; }
                 QPushButton:hover { background: rgba(255,255,255,40); }

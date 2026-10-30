@@ -377,7 +377,7 @@ QWidget *ManageDialog::create_detail_column() {
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    apply_style_sheet(scroll, "QScrollArea { background: transparent; border: none; }");
     detail_content = new QWidget;
     detail_content->setObjectName("ManageDetailContent");
     detail_layout = new QVBoxLayout(detail_content);
@@ -446,7 +446,7 @@ void ManageDialog::apply_ui_theme(const UIThemeTokens &tokens) {
     const auto s = [](int value) { return QString::number(dialog_scaled(value)); };
     refresh_theme_scope();
     refresh_theme_widget_styles(this);
-    setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString(R"(
             QWidget#ManagePanel {
                 background: %1;
                 border: 1px solid %2;
@@ -584,7 +584,7 @@ void ManageDialog::apply_ui_theme(const UIThemeTokens &tokens) {
 void ManageDialog::apply_dynamic_form_theme() {
     // Form controls rebuilt when the selection or mode changes.
     refresh_theme_widget_styles(detail_content);
-    for (int index = 0; index < emoji_tab_buttons.size(); ++index) emoji_tab_buttons[index]->setStyleSheet(emoji_tab_style(index == emoji_current_idx, this));
+    for (int index = 0; index < emoji_tab_buttons.size(); ++index) apply_style_sheet(emoji_tab_buttons[index], emoji_tab_style(index == emoji_current_idx, this));
 }
 
 // ------------------------------------------------------------------
@@ -686,7 +686,7 @@ void ManageDialog::show_group_menu(const QPoint &pos) {
     group_list->setCurrentItem(item);
     const qint64 group_id = item->data(ID_ROLE).toLongLong();
     QMenu menu(this);
-    menu.setStyleSheet(theme_menu_style());
+    apply_style_sheet(&(menu), theme_menu_style());
     add_menu_action(&menu, tr_text("Edit Group"), [this, group_id] { show_edit_group_form(group_id); });
     menu.addSeparator();
     add_menu_action(&menu, tr_text("Move to Top"), [this] { group_list->move_current_to_top(); });
@@ -823,7 +823,7 @@ void ManageDialog::show_item_menu(const QPoint &pos) {
     const qint64 item_id = item->data(ID_ROLE).toLongLong();
     show_edit_content_form(item_id);
     QMenu menu(this);
-    menu.setStyleSheet(theme_menu_style());
+    apply_style_sheet(&(menu), theme_menu_style());
     // As in the clipboard window: images, text and files, which pin as the pin hotkey pins copied files.
     const auto clipboard_item = manager->get_item(item_id);
     add_menu_action(&menu, tr_text("Pin to Screen"), [this, item_id] { create_pin_from_clipboard_item(item_id, manager, this); })
@@ -832,7 +832,7 @@ void ManageDialog::show_item_menu(const QPoint &pos) {
     add_menu_action(&menu, tr_text("Move to Top"), [this] { item_list->move_current_to_top(); });
     add_menu_action(&menu, tr_text("Move to Bottom"), [this] { item_list->move_current_to_bottom(); });
     QMenu *group_menu = menu.addMenu(tr_text("Move to Group"));
-    group_menu->setStyleSheet(theme_menu_style());
+    apply_style_sheet(group_menu, theme_menu_style());
     for (const auto &group : manager->get_groups()) {
         if (selected_group_id && group.id == *selected_group_id) continue;
         const qint64 group_id = group.id;
@@ -1319,7 +1319,7 @@ void ManageDialog::on_save_clicked() {
 
 void ManageDialog::save_group() {
     if (!group_name_input) return;
-    const QString name = group_name_input->text().trimmed();
+    const QString name = group_name_without_type_collision(group_name_input->text(), manager->get_groups(), editing_group_id);
     if (name.isEmpty()) {
         show_warning_dialog(this, tr_text("Hint"), tr_text("Please enter group name"));
         return;

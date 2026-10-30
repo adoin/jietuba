@@ -143,11 +143,11 @@ QWidget *create_inapp_section(SettingsDialog *dialog, QWidget *parent) {
 
     auto *tab_switch = new SegmentedWidget(group);
     tab_switch->setFixedHeight(dialog_scaled(34));
-    tab_switch->setIndicatorColor(ACCENT, ACCENT);
+    tab_switch->setIndicatorColor(get_ui_theme()->tokens().accent, get_ui_theme()->tokens().accent);
 
     auto *stack = new QStackedWidget(group);
     stack->setObjectName("MouseShortcutStack");
-    stack->setStyleSheet("#MouseShortcutStack { background: transparent; border: none; }");
+    apply_style_sheet(stack, "#MouseShortcutStack { background: transparent; border: none; }");
     struct Tab {
         QString route;
         const char *title;
@@ -258,7 +258,7 @@ void MouseBindingEditor::setBinding(const QString &binding) {
 QWidget *create_mouse_page(SettingsDialog *dialog) {
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);

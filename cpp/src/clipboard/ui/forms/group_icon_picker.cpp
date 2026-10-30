@@ -105,7 +105,7 @@ private:
             btn->setFixedSize(scale_ui(36), scale_ui(36));
             btn->setAutoDefault(false);
             btn->setCursor(Qt::PointingHandCursor);
-            btn->setStyleSheet(btn_style_);
+            apply_style_sheet(btn, btn_style_);
             QObject::connect(btn, &QPushButton::clicked, dialog_, [dialog = dialog_, icon, token = form_token_] {
                 if (dialog) dialog->on_preset_icon_clicked_checked(icon, token);
             });
@@ -157,7 +157,7 @@ void create_group_icon_picker(ManageDialog *dialog, const QString &current_icon)
         btn->setFixedSize(scale_x(36), scale_y(30));
         btn->setCursor(Qt::PointingHandCursor);
         btn->setCheckable(true);
-        btn->setStyleSheet(emoji_tab_style(false, dialog));
+        apply_style_sheet(btn, emoji_tab_style(false, dialog));
         QObject::connect(btn, &QPushButton::clicked, dialog, [dialog, idx, form_token] { dialog->switch_emoji_group_checked(idx, form_token); });
         tab_bar->addWidget(btn);
         dialog->emoji_tab_buttons.append(btn);
@@ -172,7 +172,7 @@ void create_group_icon_picker(ManageDialog *dialog, const QString &current_icon)
     scroll->setMinimumHeight(scale_y(110));
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     // The scroll bar style cascades from the manage window's scrollbar_qss and follows the theme.
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     panel_layout->addWidget(scroll, 1);
     // Whatever height the form has left goes to the icons: a taller window shows more rows.
     dialog->detail_layout->addWidget(panel, 1);
@@ -198,7 +198,7 @@ void IconPreview::_apply_theme() {
     const auto &tokens = ui_tokens(this);
     const QColor tint = kind_tint(kind_, 0.14, tokens);
     const QString background = QString("rgba(%1, %2, %3, %4)").arg(tint.red()).arg(tint.green()).arg(tint.blue()).arg(tint.alphaF(), 0, 'f', 2);
-    setStyleSheet(QString("QLabel { font-size: %1px; background: %2; border: 1px solid %3; border-radius: %4px; }").arg(scale_ui(28)).arg(background, tokens.border).arg(scale_ui(14)));
+    apply_style_sheet(this, QString("QLabel { font-size: %1px; background: %2; border: 1px solid %3; border-radius: %4px; }").arg(scale_ui(28)).arg(background, tokens.border).arg(scale_ui(14)));
 }
 
 void refresh_group_icon_kind(ManageDialog *dialog) {
@@ -246,7 +246,7 @@ void switch_emoji_group(ManageDialog *dialog, int group_idx) {
     dialog->emoji_current_idx = group_idx;
     for (int i = 0; i < dialog->emoji_tab_buttons.size(); ++i) {
         dialog->emoji_tab_buttons[i]->setChecked(i == group_idx);
-        dialog->emoji_tab_buttons[i]->setStyleSheet(emoji_tab_style(i == group_idx, dialog));
+        apply_style_sheet(dialog->emoji_tab_buttons[i], emoji_tab_style(i == group_idx, dialog));
     }
     const QStringList emojis = dialog->emoji_groups.value(dialog->emoji_group_order.value(group_idx));
 

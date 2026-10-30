@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/watermark_settings_panel.h"
 #include "core/constants.h"
 #include "core/i18n.h"
@@ -79,7 +80,7 @@ void WatermarkTextField::paintEvent(QPaintEvent *) {
     painter.setRenderHint(QPainter::Antialiasing);
     const QRectF rect(this->rect());
     painter.setPen(Qt::NoPen);
-    painter.setBrush(underMouse() ? CONTROL_FILL_HOVER : CONTROL_FILL);
+    painter.setBrush(underMouse() ? control_fill_hover() : control_fill());
     painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2);
     const auto clear = clear_rect();
     const double right = !template_.isEmpty() ? clear.left() - scaled_f(4) : rect.right() - scaled_f(BASE_PADDING);
@@ -89,13 +90,13 @@ void WatermarkTextField::paintEvent(QPaintEvent *) {
     auto text = text_;
     text.replace("\n", "  ");
     painter.setFont(font());
-    painter.setPen(!text.isEmpty() ? CONTROL_INK : CONTROL_SUB);
+    painter.setPen(!text.isEmpty() ? control_ink() : control_sub());
     const auto shown = fontMetrics().elidedText(!text.isEmpty() ? text : wm_tr("Input watermark"), Qt::ElideRight, static_cast<int>(content.width()));
     painter.drawText(content, Qt::AlignLeft | Qt::AlignVCenter, shown);
     if (!template_.isEmpty()) {
         const bool hovered = clear.contains(QPointF(mapFromGlobal(cursor().pos())));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(CONTROL_SUB.red(), CONTROL_SUB.green(), CONTROL_SUB.blue(), hovered ? 200 : 120));
+        painter.setBrush(QColor(control_sub().red(), control_sub().green(), control_sub().blue(), hovered ? 200 : 120));
         painter.drawEllipse(clear);
         painter.setPen(QPen(QColor("white"), scaled_f(1.4), Qt::SolidLine, Qt::RoundCap));
         const auto c = clear.center();
@@ -201,7 +202,7 @@ void WatermarkStylePopup::apply_scale() {
 QString WatermarkStylePopup::controls_qss() {
     const auto accent = accent_color().name();
     const QString groove = "rgba(15, 23, 42, 0.12)";
-    const auto ink = CONTROL_INK.name();
+    const auto ink = control_ink().name();
     const QString buttons = QString(R"(
         QPushButton#GridLineButton { background: %1; color: %2; border: none; border-radius: %3px; padding: %4px %5px; font-size: %6px; }
         QPushButton#GridLineButton:hover { background: %7; }
@@ -209,8 +210,8 @@ QString WatermarkStylePopup::controls_qss() {
         QPushButton#GridLineButton:disabled { color: rgba(42, 50, 67, 0.4); }
         QPushButton#GridLineButton:checked:disabled { background: %9; color: rgba(42, 50, 67, 0.4); }
         )")
-        .arg(CONTROL_FILL.name(QColor::HexArgb)).arg(ink).arg(scaled(6)).arg(scaled(3)).arg(scaled(6)).arg(scaled(12))
-        .arg(CONTROL_FILL_HOVER.name(QColor::HexArgb)).arg(accent).arg(groove);
+        .arg(control_fill().name(QColor::HexArgb)).arg(ink).arg(scaled(6)).arg(scaled(3)).arg(scaled(6)).arg(scaled(12))
+        .arg(control_fill_hover().name(QColor::HexArgb)).arg(accent).arg(groove);
     return QString(R"(
         QLabel { color: %1; background: transparent; font-size: %2px; }
         QSlider { background: transparent; min-height: %3px; }
@@ -277,7 +278,7 @@ void WatermarkStylePopup::retranslate() {
 }
 
 WatermarkSettingsPanel::WatermarkSettingsPanel(QWidget *parent) : QWidget(parent) {
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
     auto *layout = new QHBoxLayout(this);
     text_field = new WatermarkTextField;
     connect(text_field, &WatermarkTextField::clicked, this, &WatermarkSettingsPanel::text_edit_requested);
@@ -309,7 +310,7 @@ void WatermarkSettingsPanel::paintEvent(QPaintEvent *) { paint_rounded_panel(thi
 
 void WatermarkSettingsPanel::apply_scale() {
     // The two combos have different fixed widths; a width cap in the stylesheet would override them.
-    setStyleSheet(build_settings_panel_stylesheet(true, "1px", 0, 2000, true));
+    apply_style_sheet(this, build_settings_panel_stylesheet(true, "1px", 0, 2000, true));
     const int mh = scaled(BASE_MARGIN_H), mv = scaled(BASE_MARGIN_V);
     layout()->setContentsMargins(mh, mv, mh, mv);
     layout()->setSpacing(scaled(BASE_SPACING));
@@ -319,10 +320,10 @@ void WatermarkSettingsPanel::apply_scale() {
     const int side = scaled(BASE_BTN);
     style_button->setFixedSize(side, side);
     style_button->setIconSize(QSize(scaled(BASE_ICON), scaled(BASE_ICON)));
-    style_button->setStyleSheet(QString("QPushButton { padding: 0px; border: none; border-radius: %1px; background: transparent; }"
+    apply_style_sheet(style_button, QString("QPushButton { padding: 0px; border: none; border-radius: %1px; background: transparent; }"
                                         "QPushButton:hover { background: %2; }")
                                     .arg(scaled(6))
-                                    .arg(CONTROL_FILL_HOVER.name(QColor::HexArgb)));
+                                    .arg(control_fill_hover().name(QColor::HexArgb)));
     if (style_popup_) style_popup_->apply_scale();
     adjustSize();
     update();

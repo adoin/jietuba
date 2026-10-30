@@ -21,79 +21,31 @@ QString ThemeStyleGenerator::hex_to_rgb(const QString &hex_color) {
 }
 
 QString ThemeStyleGenerator::generate_window_style(int opacity) const {
+    Q_UNUSED(opacity);
     const auto &c = theme_.colors;
     return QString(R"(
-            QFrame#mainContainer {
-                background: rgba(%1, %2);
-                border: 1px solid %3;
-                border-radius: %4;
-            }
-            QToolTip {
-                background: %5;
-                color: %6;
-                border: 1px solid %3;
-                border-radius: %4;
-                padding: %7 %8;
-                font-size: %9;
-            }
-        )")
-        .arg(hex_to_rgb(c.bg_primary), alpha_text(opacity), c.border_primary, px(9), c.bg_primary, c.text_primary, px(4), px(8), px(12));
+        QFrame#mainContainer { background: transparent; border: none; }
+        QToolTip { background: %1; color: %2; border: none; border-radius: %3; padding: %4 %5; font-size: %6; }
+    )").arg(c.bg_primary, c.text_primary, px(6), px(4), px(8), px(12));
 }
 
 QString ThemeStyleGenerator::generate_list_widget_style(int opacity) const {
+    Q_UNUSED(opacity);
     const auto &c = theme_.colors;
     return QString(R"(
-            QListWidget {
-                background: rgba(%1, %2);
-                border: none;
-                outline: none;
-                color: %3;
-                padding: %4 0px;
-            }
-            QListWidget::item {
-                padding: 0px;
-                border: none;
-                background: transparent;
-            }
-            QListWidget::item:selected {
-                background: transparent;
-            }
-            QListWidget::item:hover {
-                background: transparent;
-            }
-            QScrollBar:vertical {
-                background: transparent;
-                width: %5;
-                margin: %4 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: %6;
-                border-radius: %7;
-                min-height: %8;
-            }
-            QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {
-                background: %3;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: transparent;
-            }
-        )")
-        .arg(hex_to_rgb(c.bg_primary), alpha_text(opacity), c.text_primary, px(4), px(6), c.text_secondary, px(3), px(24));
+        QListWidget { background: transparent; border: none; outline: none; color: %1; padding: %2 0; }
+        QListWidget::item, QListWidget::item:selected, QListWidget::item:hover { background: transparent; border: none; padding: 0; }
+        QScrollBar:vertical { background: transparent; width: %3; margin: %2 0; }
+        QScrollBar::handle:vertical { background: %4; border-radius: %5; min-height: %6; }
+        QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed { background: %1; }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
+    )").arg(c.text_primary, px(4), px(6), c.text_secondary, px(3), px(24));
 }
 
 QString ThemeStyleGenerator::generate_search_bar_style(int opacity) const {
-    const auto &c = theme_.colors;
-    // Only the bar itself: its children would draw the same translucent line again on top.
-    return QString(R"(
-            #%4 {
-                background: rgba(%1, %2);
-                border-top: 1px solid %3;
-            }
-        )")
-        .arg(hex_to_rgb(c.bg_primary), alpha_text(opacity), divider_color(), BAR_OBJECT_NAME);
+    Q_UNUSED(opacity);
+    return QString("#%1 { background: transparent; border: none; }").arg(BAR_OBJECT_NAME);
 }
 
 QString ThemeStyleGenerator::divider_color() const {
@@ -176,6 +128,7 @@ QString ThemeStyleGenerator::generate_menu_style() const {
 }
 
 QString ThemeStyleGenerator::generate_search_box_style(bool has_text) const {
+    Q_UNUSED(has_text);
     const auto &c = theme_.colors;
     return QString(R"(
             QFrame#searchBox {
@@ -195,8 +148,8 @@ QString ThemeStyleGenerator::generate_search_box_style(bool has_text) const {
                 border: none;
             }
         )")
-        // The faint base when empty is all that marks it as a box: the field has no border.
-        .arg(has_text ? c.bg_hover : QString("rgba(%1, 0.07)").arg(hex_to_rgb(c.text_primary)), c.text_primary, px(13), QString("0px"), px(6));
+        // The surface widget paints the recessed material; the field stays transparent.
+        .arg(QStringLiteral("transparent"), c.text_primary, px(13), QString("0px"), px(6));
 }
 
 QString ThemeStyleGenerator::generate_clear_search_btn_style() const {

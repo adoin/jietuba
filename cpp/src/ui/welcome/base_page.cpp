@@ -10,11 +10,8 @@ QString welcome_tr(const char *text) { return i18n_tr(text, "WelcomeWizard"); }
 
 WelcomeTheme welcome_theme() {
     const auto &tokens = get_ui_theme()->tokens();
-    if (tokens.is_dark())
-        return {"#23272C", "#2B3036", "#252A30", "#262C32", "#20252A", "#3C444D", "#4B5661", "#363E47",
-                "#F2F4F6", "#AEB7C1", "#87919C", tokens.accent, tokens.accent_hover, "#31404C", "#171C21", "#303840", true};
-    return {"#FFFFFF", "#FFFFFF", "#F7F9FB", "#F3F7FA", "#F5F8FA", "#DDE5EC", "#C9D6E0", "#E5EBF0",
-            "#172331", "#667587", "#8795A4", tokens.accent, tokens.accent_hover, "#E9F0F5", "#233342", "#EAF0F4", false};
+    return {tokens.window,tokens.window,tokens.window,tokens.window,tokens.window,tokens.border,tokens.border_hover,"transparent",
+            tokens.text,tokens.text_muted,tokens.text_disabled,tokens.accent,tokens.accent_hover,tokens.accent_soft,tokens.window,tokens.window,tokens.is_dark()};
 }
 
 QString brand_text(const QString &text) {
@@ -63,7 +60,7 @@ void IllustrationArea::init() {
 
 void IllustrationArea::apply_welcome_theme() {
     const auto theme = welcome_theme();
-    setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString(R"(
         #IllustrationArea {
             background: %1;
             border: 1px solid %2;
@@ -137,8 +134,8 @@ void BasePage::init() {
 
 void BasePage::apply_welcome_theme() {
     const auto theme = welcome_theme();
-    setStyleSheet(QString("#BasePage { background: %1; }").arg(theme.page));
-    content_widget_->setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString("#BasePage { background: %1; }").arg(theme.page));
+    apply_style_sheet(content_widget_, QString(R"(
         #ContentPanel {
             background: %1;
             border: 1px solid %2;
@@ -151,7 +148,7 @@ void BasePage::apply_welcome_theme() {
     for (auto *label : findChildren<QLabel *>()) apply_welcome_label_style(label);
     for (auto *widget : findChildren<QWidget *>()) {
         if (widget->property("welcomeSettingRow").toBool())
-            widget->setStyleSheet(QString(R"(
+            apply_style_sheet(widget, QString(R"(
                 #SettingRow {
                     background: %1;
                     border: 1px solid %2;

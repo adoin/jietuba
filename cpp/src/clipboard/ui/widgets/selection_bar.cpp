@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "clipboard/ui/widgets/selection_bar.h"
 #include "core/i18n.h"
 #include "core/ui_scale.h"
@@ -74,7 +75,7 @@ void SelectionBar::apply_style(const Theme &theme) {
     for (QToolButton *button : {more_button, exit_button}) button->setFixedSize(scaled(28), scaled(28));
     exit_button->setIcon(tinted_icon(FluentIcon::Cancel, "#FFFFFF"));
     exit_button->setIconSize(QSize(scaled(18), scaled(18)));
-    setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString(R"(
         #selection_bar { background: %1; }
         QLabel { color: white; font-size: %2; font-weight: bold; background: transparent; }
         #selection_paste { background: white; color: %1; border: none; border-radius: %3; padding: 0 %4; font-size: %5; font-weight: bold; }

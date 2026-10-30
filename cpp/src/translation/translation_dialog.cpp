@@ -1,3 +1,5 @@
+#include "core/material_style.h"
+#include "core/ui_theme.h"
 #include "translation/translation_dialog.h"
 #include "core/branding.h"
 #include "core/i18n.h"
@@ -32,18 +34,24 @@ QString tr_text(const char *text) { return i18n_tr(text, "TranslationDialog"); }
 }
 
 const DashboardPalette &dashboard_dark() {
-    static const DashboardPalette palette{
-        "#45474e", "#2c2d33", "#555860", "#f4f6f9", "#9aa1ae", "#686d79", "#3f8cff", "#62a2ff", "rgba(63, 140, 255, 0.16)",
+    static DashboardPalette palette{
+        "#25292e", "#25292e", "#25292e", "#f4f6f9", "#9aa1ae", "#686d79", "#3f8cff", "#62a2ff", "rgba(63, 140, 255, 0.16)",
         "rgba(125, 132, 148, 0.22)", "rgba(125, 132, 148, 0.34)", QColor(125, 132, 148, 56), QColor(125, 132, 148, 87), "#ff5449", "#35d06a",
     };
+    const auto &t=DARK_TOKENS();
+    palette.window=palette.field=palette.surface_strong=t.window;
+    palette.accent=t.accent_strong; palette.accent_hover=t.accent_strong_hover; palette.accent_tint=t.accent_soft;
     return palette;
 }
 
 const DashboardPalette &dashboard_light() {
-    static const DashboardPalette palette{
-        "#f5f5f7", "#ffffff", "#ffffff", "#1d1d1f", "#73737a", "#9999a1", "#007aff", "#218cff", "rgba(0, 122, 255, 0.12)",
+    static DashboardPalette palette{
+        "#f7f7f8", "#f7f7f8", "#f7f7f8", "#1d1d1f", "#73737a", "#9999a1", "#007aff", "#218cff", "rgba(0, 122, 255, 0.12)",
         "rgba(120, 120, 128, 0.15)", "rgba(120, 120, 128, 0.25)", QColor(120, 120, 128, 38), QColor(120, 120, 128, 64), "#ff3b30", "#34c759",
     };
+    const auto &t=LIGHT_TOKENS();
+    palette.window=palette.field=palette.surface_strong=t.window;
+    palette.accent=t.accent_strong; palette.accent_hover=t.accent_strong_hover; palette.accent_tint=t.accent_soft;
     return palette;
 }
 
@@ -199,6 +207,8 @@ void SpeechButton::refresh() {
 }
 
 TranslateButton::TranslateButton(QWidget *parent) : QAbstractButton(parent), palette_(&dashboard_dark()), idle_text_(tr_text("Translate")) {
+    setProperty("_materialPrimary",true);
+    setProperty("_materialRadius",dialog_scaled(17));
     setText(idle_text_);
     setToolTip(tr_text("Translate text"));
     setCursor(Qt::PointingHandCursor);
@@ -456,6 +466,7 @@ void TranslationDialog::build_ui() {
 
     source_pane = new FocusPane;
     source_pane->setObjectName("sourcePane");
+    source_pane->setProperty("_materialDepth", "recessed");
     auto *source_layout = new QVBoxLayout(source_pane);
     source_layout->setContentsMargins(dialog_scaled(10), dialog_scaled(10), dialog_scaled(10), dialog_scaled(8));
     source_layout->setSpacing(dialog_scaled(2));
@@ -495,6 +506,7 @@ void TranslationDialog::build_ui() {
 
     target_pane = new QFrame;
     target_pane->setObjectName("targetPane");
+    target_pane->setProperty("_materialDepth", "recessed");
     auto *target_layout = new QVBoxLayout(target_pane);
     target_layout->setContentsMargins(dialog_scaled(10), dialog_scaled(10), dialog_scaled(10), dialog_scaled(8));
     target_layout->setSpacing(dialog_scaled(2));
@@ -773,31 +785,14 @@ void TranslationDialog::set_backend_badge(const QString &text, bool configured) 
 }
 
 void TranslationDialog::paintEvent(QPaintEvent *) {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(rect(), Qt::transparent);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    const double radius = isMaximized() ? 0.0 : dialog_scaled(WINDOW_CORNER_RADIUS);
-    QRectF area(rect());
-    if (!isMaximized()) area.adjust(0.5, 0.5, -0.5, -0.5);
-    if (theme_name_ == "dark") {
-        QLinearGradient background(0, 0, 0, std::min(dialog_scaled(190), height()));
-        background.setColorAt(0.0, QColor("#4d4f56"));
-        background.setColorAt(1.0, QColor("#41434a"));
-        painter.setBrush(background);
-    } else {
-        painter.setBrush(QColor(palette_->window));
-    }
-    painter.setPen(Qt::NoPen);
-    painter.drawRoundedRect(area, radius, radius);
+    paint_material_window(this, isMaximized() ? 0 : dialog_scaled(WINDOW_CORNER_RADIUS), QColor(palette_->window));
 }
 
 void TranslationDialog::set_theme(const QString &theme_name) {
     theme_name_ = theme_name == "light" ? "light" : "dark";
+    setProperty("_materialDark", theme_name_ == "dark");
     palette_ = theme_name_ == "light" ? &dashboard_light() : &dashboard_dark();
-    setStyleSheet(style_sheet(*palette_));
+    apply_style_sheet(this, style_sheet(*palette_));
     swap_button->setIcon(tinted_icon(ResourceManager::get_icon_path("swap.svg"), palette_->accent));
     dashboard_title_bar->apply_palette(*palette_);
     for (auto *button : tool_buttons_) button->apply_palette(*palette_);
@@ -825,7 +820,7 @@ QString TranslationDialog::style_sheet(const DashboardPalette &p) {
         }
         QLabel#backendBadge[configured="true"] { color: @green; }
         QComboBox#languageCombo {
-            color: @text; background: @fill; border: none; border-radius: @s18px;
+            color: @text; background: @field; border: none; border-radius: @s18px;
             padding: 0 @s14px;
         }
         QComboBox#languageCombo:hover { background: @fill_hover; }

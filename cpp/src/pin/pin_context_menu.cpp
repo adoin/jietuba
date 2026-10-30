@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "pin/pin_context_menu.h"
 #include "core/constants.h"
 #include "core/i18n.h"
@@ -36,7 +37,7 @@ void PinContextMenu::show(const QPoint &global_pos, const PinMenuState &state) {
     // deleted while the menu runs its own loop, it deletes the menu as a child, which a stack object cannot survive.
     const QPointer<QMenu> menu = new QMenu(parent);
     setup_font(menu);
-    menu->setStyleSheet(menu_style());
+    apply_style_sheet(menu, menu_style());
     add_menu_items(menu, state);
     menu->exec(global_pos);
     delete menu.data();
@@ -161,7 +162,7 @@ void PinContextMenu::add_menu_items(QMenu *menu, const PinMenuState &state) {
     if (!is_thumbnail) add(menu, shortcut_text(pin_tr("Reset size"), "inapp_pin_reset_size"), [win] { win->reset_to_original_size(); });
     if (!is_thumbnail && !state.text_only && !is_animation && !is_files) {
         auto *transform_menu = new QMenu(pin_tr("Image transform"), menu);
-        transform_menu->setStyleSheet(menu_style());
+        apply_style_sheet(transform_menu, menu_style());
         setup_font(transform_menu);
         add(transform_menu, pin_tr("Rotate right"), [win] { win->rotate_image_cw(); });
         add(transform_menu, pin_tr("Rotate left"), [win] { win->rotate_image_ccw(); });

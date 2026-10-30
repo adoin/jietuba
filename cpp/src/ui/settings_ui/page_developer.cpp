@@ -13,7 +13,7 @@ QWidget *create_developer_page(SettingsDialog *dialog) {
     auto *config = dialog->config_manager;
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);
@@ -55,7 +55,7 @@ QWidget *create_developer_page(SettingsDialog *dialog) {
     auto *preload_desc = new CaptionLabel(
         dialog->tr_text("Control which modules are preloaded at startup. Disable to speed up launch. Changes take effect after restart."), view);
     preload_desc->setWordWrap(true);
-    preload_desc->setStyleSheet(QString("padding: 0 0 %1px 0;").arg(dialog_scaled(4)));
+    apply_style_sheet(preload_desc, QString("padding: 0 0 %1px 0;").arg(dialog_scaled(4)));
     layout->addWidget(preload_desc);
     struct PreloadItem {
         const char *attr;

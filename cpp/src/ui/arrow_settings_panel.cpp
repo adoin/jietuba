@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/arrow_settings_panel.h"
 #include "canvas/items/arrow_item.h"
 #include "core/i18n.h"
@@ -88,7 +89,7 @@ void StylePreviewDelegate::paint(QPainter *painter, const QStyleOptionViewItem &
 }
 
 ArrowSettingsPanel::ArrowSettingsPanel(QWidget *parent) : QWidget(parent), current_arrow_style(ArrowItem::STYLE_SINGLE) {
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
     init_ui();
     connect_signals();
 }
@@ -96,7 +97,7 @@ ArrowSettingsPanel::ArrowSettingsPanel(QWidget *parent) : QWidget(parent), curre
 void ArrowSettingsPanel::paintEvent(QPaintEvent *) { paint_rounded_panel(this); }
 
 void ArrowSettingsPanel::apply_scale() {
-    setStyleSheet(build_settings_panel_stylesheet(true, "1px", BASE_COMBO_WIDTH, BASE_COMBO_WIDTH, true));
+    apply_style_sheet(this, build_settings_panel_stylesheet(true, "1px", BASE_COMBO_WIDTH, BASE_COMBO_WIDTH, true));
     const int mh = scaled(BASE_MARGIN_H), mv = scaled(BASE_MARGIN_V);
     layout()->setContentsMargins(mh, mv, mh, mv);
     layout()->setSpacing(scaled(BASE_SPACING));

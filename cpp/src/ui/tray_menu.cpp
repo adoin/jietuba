@@ -87,7 +87,7 @@ void add_pin_actions(QMenu *menu) {
     auto *pin_manager = PinManager::instance();
     const int pin_count = pin_manager->count();
     auto *pins_menu = new QMenu(tr_text("Current pinned windows: {count}").replace("{count}", QString::number(pin_count)), menu);
-    pins_menu->setStyleSheet(menu_style());
+    apply_style_sheet(pins_menu, menu_style());
     pins_menu->setEnabled(pin_count > 0);
 
     auto *move_center_action = new QAction(tr_text("Move all pins to center"), pins_menu);
@@ -129,7 +129,7 @@ void CustomTrayMenu::mouseReleaseEvent(QMouseEvent *event) {
 
 QMenu *create_tray_menu(MainApp *app) {
     auto *menu = new CustomTrayMenu();
-    menu->setStyleSheet(menu_style());
+    apply_style_sheet(menu, menu_style());
 
     auto *action_screenshot = new QAction(with_hotkey(app, tr_text("Screenshot"), "screenshot"), menu);
     QObject::connect(action_screenshot, &QAction::triggered, app, &MainApp::start_screenshot);

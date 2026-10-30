@@ -122,7 +122,7 @@ QWidget *create_capture_page(SettingsDialog *dialog) {
     auto *config = dialog->config_manager;
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);
@@ -214,7 +214,7 @@ QWidget *create_capture_page(SettingsDialog *dialog) {
     layout->addWidget(grp_save);
 
     auto *hint = new CaptionLabel(dialog->tr_text("💡 Hint: Even with auto-save off, it will be copied to clipboard."), view);
-    hint->setStyleSheet("padding: 5px;");
+    apply_style_sheet(hint, "padding: 5px;");
     layout->addWidget(hint);
 
     add_quick_actions_group(dialog, view, layout);

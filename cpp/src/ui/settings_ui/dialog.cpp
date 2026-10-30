@@ -436,7 +436,7 @@ void SettingsDialog::refresh_clipboard_size(int delay_ms) {
 
 void SettingsDialog::show_logo_context_menu(const QPoint &pos) {
     QMenu menu(this);
-    menu.setStyleSheet(theme_menu_style());
+    apply_style_sheet(&(menu), theme_menu_style());
     auto *action_dev = menu.addAction(tr_text("Developer Options"));
     if (menu.exec(mapToGlobal(pos)) == action_dev) open_developer_page();
 }
@@ -1138,19 +1138,18 @@ void SettingsDialog::apply_dialog_stylesheet() {
             QScrollBar::handle:vertical:disabled { background: transparent; }
         )";
     // Runs on every show; an unchanged sheet is not set again, which would restyle every control.
-    if (sheet != styleSheet()) setStyleSheet(sheet);
+    if (sheet != styleSheet()) apply_style_sheet(this, sheet);
 }
 
 void SettingsDialog::on_ui_theme_changed() {
     apply_dialog_stylesheet();
     refresh_theme_widget_styles(this);
-    content_title_->setStyleSheet(theme_text_style(21, true, "padding: 0 6px 2px 6px;"));
+    apply_style_sheet(content_title_, theme_text_style(21, true, "padding: 0 6px 2px 6px;"));
     update();
 }
 
 void SettingsDialog::resizeEvent(QResizeEvent *event) {
     FrostedFramelessDialog::resizeEvent(event);
-    if (titleBar()) titleBar()->resize(width(), titleBar()->height());
 }
 
 void SettingsDialog::showEvent(QShowEvent *event) {

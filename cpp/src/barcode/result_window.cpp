@@ -4,6 +4,7 @@
 #include "core/theme.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "settings/tool_settings.h"
 #include "ui/dialogs.h"
 #include "ui/fluent_lite/buttons.h"
@@ -83,9 +84,7 @@ void CodeImageView::paintEvent(QPaintEvent *) {
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
     const auto image_rect = transform.mapRect(QRectF(image_.rect()));
     painter.drawImage(image_rect, image_);
-    painter.setPen(QPen(QColor(ui_tokens(this).window_border), 1));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(image_rect);
+    paint_material_edges(painter,image_rect,widget_scaled(this,8),QColor(ui_tokens(this).window),MaterialDepth::Recessed);
 
     const auto color = get_theme().theme_color();
     for (int index = 0; index < static_cast<int>(codes_.size()); ++index) {
@@ -149,7 +148,7 @@ CodeText::CodeText(const QString &text, QWidget *parent) : TextEdit(parent) {
 
 void CodeText::apply_theme() {
     const auto &t = ui_tokens(this);
-    setStyleSheet(QString("QTextEdit { background: transparent; color: %1; font: %2px %3; selection-background-color: %4; selection-color: %5; }")
+    apply_style_sheet(this, QString("QTextEdit { background: transparent; color: %1; font: %2px %3; selection-background-color: %4; selection-color: %5; }")
                       .arg(t.text)
                       .arg(dialog_scaled(13))
                       .arg(FONT_FAMILY, t.accent, t.selected_text));
@@ -206,7 +205,7 @@ void CodeCard::copy(const QString &text) {
 
 void CodeCard::_apply_theme() {
     SimpleCardWidget::_apply_theme();
-    setStyleSheet(styleSheet() + QString("QFrame#FluentLiteSimpleCard[active=\"true\"] { border: 2px solid %1; }").arg(get_theme().theme_color_hex()));
+    apply_style_sheet(this, styleSheet() + QString("QFrame#FluentLiteSimpleCard[active=\"true\"] { border: 2px solid %1; }").arg(get_theme().theme_color_hex()));
 }
 
 void CodeCard::enterEvent(QEnterEvent *event) {
@@ -286,7 +285,7 @@ BarcodeResultWindow::BarcodeResultWindow(const QImage &image, const std::vector<
 }
 
 void BarcodeResultWindow::apply_theme() {
-    scroll_->setStyleSheet("QScrollArea { border: none; background: transparent; }"
+    apply_style_sheet(scroll_, "QScrollArea { border: none; background: transparent; }"
                            "QScrollArea > QWidget > QWidget { background: transparent; }" +
                            scrollbar_qss(this));
 }

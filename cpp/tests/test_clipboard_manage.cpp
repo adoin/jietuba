@@ -83,7 +83,7 @@ class ClipboardManageTests : public QObject {
     }
 
 private slots:
-    void initTestCase() { QVERIFY(env_.init(this)); }
+    void initTestCase() { QVERIFY(env_.init(this)); QVERIFY(I18nManager::load_language("en")); }
 
     void theManageWindowUsesTheStandardCaption() {
         use_test_app_icon();
@@ -93,42 +93,47 @@ private slots:
 
     void init() { QVERIFY(env_.fresh_database()); }
 
-    void starterGroupsAreAddedOnceAndOnlyWithoutGroups() {
+    void groupNamesAvoidTypeTabs_data() {
+        QTest::addColumn<QString>("language");
+        QTest::addColumn<QString>("label");
+        QTest::newRow("English") << QString("en") << QString("Image");
+        QTest::newRow("Chinese") << QString("zh") << QString::fromUtf8("图片");
+    }
+
+    void groupNamesAvoidTypeTabs() {
+        QFETCH(QString, language);
+        QFETCH(QString, label);
+        const auto previous = I18nManager::get_current_language();
+        const auto restore = qScopeGuard([previous] { I18nManager::load_language(previous); });
+        QVERIFY(I18nManager::load_language(language));
+        const auto first = manager().create_group(label + "1");
+        QVERIFY(first);
+        const auto second = manager().create_group("  " + label + "  ");
+        QVERIFY(second);
+        QCOMPARE(manager().get_groups().last().name, label + "2");
+        QVERIFY(manager().rename_group(*first, label));
+        QCOMPARE(manager().get_groups().first().name, label + "1");
+        const auto normal = manager().create_group("Work");
+        QVERIFY(normal);
+        QCOMPARE(manager().get_groups().last().name, QString("Work"));
+    }
+
+    void savingTypeNameFromTheFormUsesTheNextNumber() {
+        QVERIFY(manager().create_group("Image1"));
+        auto *dialog = open_dialog();
+        dialog->new_group_btn->click();
+        dialog->group_name_input->setText("Image");
+        dialog->save_btn->click();
+        QCOMPARE(manager().get_groups().size(), 2);
+        QCOMPARE(manager().get_groups().last().name, QString("Image2"));
+    }
+
+    void newHistoryStartsWithoutPresetGroups() {
         auto &manager = ClipboardManager::instance();
-        const auto translate = [](const char *text) { return QString::fromUtf8(text); };
-        const auto names = [&manager] {
-            QStringList list;
-            for (const auto &group : manager.get_groups()) list << group.name;
-            return list;
-        };
-        const auto restore = qScopeGuard([this] { env_.config->set_clipboard_starter_groups_seeded(false); });
-
-        // Someone who already has groups gets nothing new, and is not asked again.
-        env_.config->set_clipboard_starter_groups_seeded(false);
+        QVERIFY(manager.get_groups().isEmpty());
         QVERIFY(manager.create_group("Work"));
-        seed_starter_groups(manager, env_.config, translate);
-        QCOMPARE(names(), QStringList{"Work"});
-        QVERIFY(env_.config->get_clipboard_starter_groups_seeded());
-
-        // A history without groups gets a normal group to move items into, then an image filter group.
-        QVERIFY(env_.fresh_database());
-        env_.config->set_clipboard_starter_groups_seeded(false);
-        seed_starter_groups(manager, env_.config, translate);
-        const auto groups = manager.get_groups();
-        QCOMPARE(groups.size(), 2);
-        QCOMPARE(groups[0].name, QString("Favorites"));
-        QCOMPARE(groups[0].group_type, static_cast<int>(GroupType::NORMAL));
-        QCOMPARE(groups[1].name, QString("Image"));
-        QVERIFY(groups[1].is_filter());
-        QCOMPARE(groups[1].filter_rule, std::optional<FilterRule>(FilterRule::of_kind("image")));
-        const auto note_id = manager.add_item("note");
-        QVERIFY(note_id);
-        QVERIFY(manager.move_to_group(*note_id, groups[0].id));
-
-        // Deleting every group does not bring them back.
-        for (const auto &group : groups) QVERIFY(manager.delete_group(group.id));
-        seed_starter_groups(manager, env_.config, translate);
-        QVERIFY(names().isEmpty());
+        QCOMPARE(manager.get_groups().size(), 1);
+        QCOMPARE(manager.get_groups().first().name, QString("Work"));
     }
 
     void cleanup() {
@@ -567,7 +572,8 @@ private slots:
         QVERIFY(menu_pick(dialog->item_list, 0, "Move to Bottom"));
         QCOMPARE(ids_of(manager().get_by_group(*notes)), (QList<qint64>{before[1], before[0]}));
         QStringList seen;
-        QVERIFY(menu_pick(dialog->item_list, 0, display_text_for_group("Other"), &seen));
+        // "Other" is a type tab; a user group receives the collision suffix.
+        QVERIFY(menu_pick(dialog->item_list, 0, display_text_for_group("Other1"), &seen));
         QCOMPARE(manager().get_by_group(*other).size(), 1);
         QCOMPARE(dialog->item_list->count(), 1);
 
@@ -1170,13 +1176,13 @@ private slots:
         QCOMPARE(dialog->selected_group_id, other);
         QCOMPARE(dialog->current_mode, QString("content"));
         QVERIFY(!dialog->new_group_btn->isChecked());
-        QVERIFY(dialog->list_title->text().endsWith("Other"));
+        QVERIFY(dialog->list_title->text().endsWith("Other1"));
 
         // Switching forms from outside brings the previous group back.
         dialog->new_group_btn->click();
         dialog->switch_mode("content");
         QCOMPARE(dialog->group_list->currentRow(), 1);
-        QVERIFY(dialog->list_title->text().endsWith("Other"));
+        QVERIFY(dialog->list_title->text().endsWith("Other1"));
 
         // Saving selects the new group.
         dialog->new_group_btn->click();

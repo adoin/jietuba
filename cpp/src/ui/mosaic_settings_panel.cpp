@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/mosaic_settings_panel.h"
 #include "core/i18n.h"
 #include "core/resource_manager.h"
@@ -60,7 +61,7 @@ QPixmap render_block_size_swatch(int block_size, int side, bool smooth, double r
 }
 
 MosaicSettingsPanel::MosaicSettingsPanel(QWidget *parent) : QWidget(parent) {
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
     init_ui();
     connect_signals();
 }
@@ -69,7 +70,7 @@ void MosaicSettingsPanel::paintEvent(QPaintEvent *) { paint_rounded_panel(this);
 
 void MosaicSettingsPanel::apply_scale() {
     // Mode, strength and brush size stay; only sizes change.
-    setStyleSheet(build_settings_panel_stylesheet());
+    apply_style_sheet(this, build_settings_panel_stylesheet());
     const int mh = scaled(BASE_MARGIN_H), mv = scaled(BASE_MARGIN_V);
     layout()->setContentsMargins(mh, mv, mh, mv);
     layout()->setSpacing(scaled(BASE_SPACING));
@@ -95,7 +96,7 @@ void MosaicSettingsPanel::apply_scale() {
     for (auto *button : block_size_buttons) {
         button->setFixedSize(btn_sz, btn_sz);
         button->setIconSize(QSize(icon_sz, icon_sz));
-        button->setStyleSheet(level_button_qss);
+        apply_style_sheet(button, level_button_qss);
     }
     block_size_layout_->setSpacing(scaled(2));
     // Swatches are drawn at this pixel size, so they are redrawn after scaling.
@@ -114,12 +115,12 @@ void MosaicSettingsPanel::init_ui() {
     freehand_btn->setCheckable(true);
     freehand_btn->setToolTip(mosaic_tr("Freehand Mosaic"));
     freehand_btn->setIcon(cached_icon(QString::fromUtf8("画笔.svg")));
-    freehand_btn->setStyleSheet("QPushButton { padding: 0px; }");
+    apply_style_sheet(freehand_btn, "QPushButton { padding: 0px; }");
     rect_btn = new QPushButton;
     rect_btn->setCheckable(true);
     rect_btn->setToolTip(mosaic_tr("Rect Mosaic"));
     rect_btn->setIcon(cached_icon(QString::fromUtf8("方框.svg")));
-    rect_btn->setStyleSheet("QPushButton { padding: 0px; }");
+    apply_style_sheet(rect_btn, "QPushButton { padding: 0px; }");
     mode_group = new QButtonGroup(this);
     mode_group->setExclusive(true);
     mode_group->addButton(freehand_btn);
@@ -142,7 +143,7 @@ void MosaicSettingsPanel::init_ui() {
         auto *button = new QPushButton;
         button->setCheckable(true);
         button->setIcon(cached_icon(QString::fromUtf8(kind.icon)));
-        button->setStyleSheet("QPushButton { padding: 0px; }");
+        apply_style_sheet(button, "QPushButton { padding: 0px; }");
         kind_group->addButton(button);
         kind_buttons[kind.value] = button;
         kind_layout_->addWidget(button);

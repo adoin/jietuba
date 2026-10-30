@@ -1,9 +1,12 @@
 #include "core/ui_theme.h"
+#include "core/material_style.h"
+#include "core/theme.h"
 #include "settings/tool_settings.h"
 #include <QApplication>
 #include <QGuiApplication>
 #include <QStyleHints>
 #include <QWidget>
+#include <cmath>
 
 namespace jietuba {
 QString ui_theme_mode_value(UIThemeMode mode) {
@@ -22,6 +25,37 @@ UIThemeMode coerce_ui_theme_mode(const QVariant &value) {
 }
 
 namespace {
+void apply_accent(UIThemeTokens &t) {
+    const QColor accent = get_theme().theme_color();
+    static QString light_accent, dark_accent;
+    auto &cached=t.is_dark()?dark_accent:light_accent;
+    if(cached==accent.name()) return;
+    cached=accent.name();
+    const auto material=material_palette(accent,t.is_dark());
+    t.window=t.window_top=t.window_bottom=material.surface.name();
+    t.surface=t.surface_strong=t.surface_subtle=t.input_background=t.popup_background=t.window;
+    t.surface_hover=QColor::fromHslF(std::max(0.0f,accent.hslHueF()),accent.hslSaturationF()*0.14,t.is_dark()?0.19:0.95).name();
+    t.accent = accent.name();
+    t.accent_hover = accent.darker(108).name();
+    t.accent_pressed = accent.darker(118).name();
+    auto luminance=[](const QColor &color) {
+        auto linear=[](double c){return c<=0.04045?c/12.92:std::pow((c+0.055)/1.055,2.4);};
+        return 0.2126*linear(color.redF())+0.7152*linear(color.greenF())+0.0722*linear(color.blueF());
+    };
+    QColor strong=accent;
+    while(luminance(strong)>0.18) strong=strong.darker(106);
+    t.accent_strong=strong.name();
+    t.accent_strong_hover=strong.darker(108).name();
+    t.accent_strong_pressed=strong.darker(118).name();
+    const QColor base(t.window);
+    const double mix=t.is_dark()?0.22:0.14;
+    t.accent_soft=QColor(qRound(base.red()*(1-mix)+accent.red()*mix),qRound(base.green()*(1-mix)+accent.green()*mix),qRound(base.blue()*(1-mix)+accent.blue()*mix)).name();
+    QColor ink=accent;
+    if(t.is_dark()) { while(luminance(ink)<0.48) { if(ink.value()<20) ink=QColor(80,80,80); else ink=ink.lighter(110); } }
+    else { while(luminance(ink)>0.16) ink=ink.darker(108); }
+    t.accent_text=ink.name();
+    t.popup_hover=t.accent_soft;
+}
 UIThemeTokens common_tokens(UIThemeMode mode) {
     UIThemeTokens t;
     t.mode = mode;
@@ -36,27 +70,22 @@ UIThemeTokens common_tokens(UIThemeMode mode) {
 }
 
 const UIThemeTokens &LIGHT_TOKENS() {
-    static const UIThemeTokens tokens = [] {
+    static UIThemeTokens tokens = [] {
         auto t = common_tokens(UIThemeMode::LIGHT);
         t.accent_soft = "#DFE8EF";
         t.accent_text = "#465E73";
-        t.window = "#EEF0F3";
-        t.window_top = "#F5F6F8";
-        t.window_bottom = "#ECEEF1";
-        t.surface = "rgba(255, 255, 255, 0.92)";
-        t.surface_strong = "rgba(255, 255, 255, 0.98)";
-        t.surface_subtle = "rgba(248, 251, 253, 0.85)";
-        t.surface_hover = "#FFFFFF";
+        t.window = t.window_top = t.window_bottom = "#F7F7F8";
+        t.surface = t.surface_strong = t.surface_subtle = t.window;
+        t.surface_hover = "#F0F1F3";
         t.text = "#17201B";
         t.text_muted = "#68736D";
         t.text_disabled = "#9AA39D";
         t.border = "rgba(112, 130, 119, 0.20)";
         t.border_hover = "rgba(76, 101, 86, 0.34)";
         t.window_border = "#D3D7DC";
-        t.input_background = "#FFFFFF";
-        t.popup_background = "#FFFFFF";
+        t.input_background = t.popup_background = t.window;
         t.popup_hover = "#EAF2FA";
-        t.separator = "rgba(98, 116, 105, 0.13)";
+        t.separator = "transparent";
         t.switch_off = "#C4CCC6";
         t.success = "#3E9B63";
         t.danger = "#CF4F4B";
@@ -64,31 +93,27 @@ const UIThemeTokens &LIGHT_TOKENS() {
         t.status_idle = "#BCC5BF";
         return t;
     }();
+    apply_accent(tokens);
     return tokens;
 }
 
 const UIThemeTokens &DARK_TOKENS() {
-    static const UIThemeTokens tokens = [] {
+    static UIThemeTokens tokens = [] {
         auto t = common_tokens(UIThemeMode::DARK);
         t.accent_soft = "#31404C";
         t.accent_text = "#B9CCDD";
-        t.window = "#1B1E22";
-        t.window_top = "#24282D";
-        t.window_bottom = "#191C20";
-        t.surface = "rgba(43, 47, 52, 0.96)";
-        t.surface_strong = "rgba(49, 54, 60, 0.99)";
-        t.surface_subtle = "rgba(36, 40, 45, 0.92)";
-        t.surface_hover = "#373C43";
+        t.window = t.window_top = t.window_bottom = "#25292E";
+        t.surface = t.surface_strong = t.surface_subtle = t.window;
+        t.surface_hover = "#30363D";
         t.text = "#F2F4F6";
         t.text_muted = "#AEB5BD";
         t.text_disabled = "#737B84";
         t.border = "rgba(255, 255, 255, 0.12)";
         t.border_hover = "rgba(255, 255, 255, 0.28)";
         t.window_border = "#3B424A";
-        t.input_background = "#2B2F34";
-        t.popup_background = "#292D32";
+        t.input_background = t.popup_background = t.window;
         t.popup_hover = "#363B42";
-        t.separator = "rgba(255, 255, 255, 0.10)";
+        t.separator = "transparent";
         t.switch_off = "#626A73";
         t.success = "#4FAE74";
         t.danger = "#E0605B";
@@ -96,12 +121,14 @@ const UIThemeTokens &DARK_TOKENS() {
         t.status_idle = "#5A6168";
         return t;
     }();
+    apply_accent(tokens);
     return tokens;
 }
 
 UIThemeManager::UIThemeManager(QObject *parent) : QObject(parent) {}
 
 UIThemeManager *UIThemeManager::init(ToolSettingsManager *config_manager, QApplication *application) {
+    install_material_polish_filter(application ? application : qApp);
     config_ = config_manager;
     application_ = application ? application : qobject_cast<QApplication *>(QCoreApplication::instance());
     const auto saved = config_manager ? QVariant(config_manager->get_ui_theme_mode()) : QVariant("system");
@@ -128,7 +155,7 @@ void UIThemeManager::apply(bool force) {
     if (application_) {
         application_->setProperty("uiTheme", ui_theme_mode_value(effective));
         application_->setPalette(build_palette(tokens()));
-        application_->setStyleSheet(build_global_stylesheet(tokens()));
+        application_->setStyleSheet(material_stylesheet(nullptr, build_global_stylesheet(tokens())));
     }
     emit theme_changed(tokens());
 }
@@ -186,6 +213,13 @@ QPalette UIThemeManager::build_palette(const UIThemeTokens &t) {
 QString UIThemeManager::build_global_stylesheet(const UIThemeTokens &t) {
     // Kept small; feature windows with their own theme override it locally.
     return QString(R"(
+            QLineEdit, QComboBox, QAbstractSpinBox, QTextEdit, QPlainTextEdit, QAbstractItemView {
+                background: %2;
+                color: %1;
+                border: 1px solid transparent;
+                border-radius: 8px;
+                outline: none;
+            }
             QToolTip {
                 color: %1;
                 background-color: %2;
@@ -222,7 +256,9 @@ QString UIThemeManager::build_global_stylesheet(const UIThemeTokens &t) {
 }
 
 void apply_style_sheet(QWidget *widget, const QString &sheet) {
-    if (widget->styleSheet() != sheet) widget->setStyleSheet(sheet);
+    const auto material = material_stylesheet(widget, sheet);
+    if (widget->styleSheet() != material) widget->setStyleSheet(material);
+    update_material_decoration(widget, material);
 }
 
 void set_own_style(QWidget *widget, const QString &declarations) {

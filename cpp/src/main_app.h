@@ -81,6 +81,7 @@ public:
     void hand_off_to_admin();
     bool quit_app() override;
     QString update_busy_reason() override;
+    bool automatic_update_ready() override;
     std::pair<bool, QString> prepare_for_update() override;
     void cancel_update_preparation() override;
     void setup_pin_tray_updates();

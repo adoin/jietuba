@@ -389,7 +389,7 @@ QString inapp_label(SettingsDialog *dialog, const QString &cfg_key) {
 QWidget *create_hotkey_page(SettingsDialog *dialog) {
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
 
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
@@ -431,11 +431,11 @@ QWidget *create_hotkey_page(SettingsDialog *dialog) {
 
     auto *tab_switch = new SegmentedWidget(grp_inapp);
     tab_switch->setFixedHeight(dialog_scaled(34));
-    tab_switch->setIndicatorColor(ACCENT, ACCENT);
+    tab_switch->setIndicatorColor(get_ui_theme()->tokens().accent, get_ui_theme()->tokens().accent);
 
     auto *stack = new QStackedWidget(grp_inapp);
     stack->setObjectName("InAppShortcutStack");
-    stack->setStyleSheet("#InAppShortcutStack { background: transparent; border: none; }");
+    apply_style_sheet(stack, "#InAppShortcutStack { background: transparent; border: none; }");
 
     const auto build_tab = [dialog](const std::vector<InAppKey> &keys_list, const QString &group_name, const std::vector<std::function<QWidget *(QWidget *)>> &extra_rows = {},
                                     bool allow_mouse = true, const QSet<QString> &text_input_keys = {}) {

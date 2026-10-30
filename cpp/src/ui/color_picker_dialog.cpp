@@ -1,3 +1,4 @@
+#include "core/material_style.h"
 #include "ui/color_picker_dialog.h"
 #include "core/i18n.h"
 #include "core/platform_utils.h"
@@ -437,6 +438,7 @@ ColorPickerDialog::ColorPickerDialog(const QColor &initial, Options options, QWi
     separator_ = new QFrame(this);
     separator_->setFixedHeight(1);
     ok_button = new QPushButton(cp_tr("OK"), this);
+    ok_button->setProperty("_materialPrimary",true);
     ok_button->setDefault(true);
     cancel_button = new QPushButton(cp_tr("Cancel"), this);
     cancel_button->setAutoDefault(false);
@@ -881,23 +883,7 @@ bool ColorPickerDialog::filter_picking_event(QEvent *event) {
 }
 
 void ColorPickerDialog::paintEvent(QPaintEvent *) {
-    // A tinted caption band over the plain body.
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(rect(), Qt::transparent);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    const auto &t = ui_tokens(this);
-    QPainterPath frame;
-    frame.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), frosted_corner_radius_, frosted_corner_radius_);
-    painter.fillPath(frame, css_color(t.popup_background));
-    painter.save();
-    painter.setClipRect(QRect(0, 0, width(), caption_bar_->height()));
-    painter.fillPath(frame, css_color(t.window));
-    painter.restore();
-    painter.setPen(QPen(css_color(t.window_border), 1));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawPath(frame);
+    paint_material_window(this, frosted_corner_radius_);
 }
 
 void ColorPickerDialog::showEvent(QShowEvent *event) {

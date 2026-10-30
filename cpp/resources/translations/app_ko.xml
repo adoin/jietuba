@@ -7195,4 +7195,13 @@ Replace it?</source>
         <translation>복사한 파일과 폴더. 아이콘, 이름, 크기를 표시합니다.</translation>
     </message>
 </context>
+  <context>
+    <name>SettingsDialog</name>
+    <message><source>Automatic Updates</source><translation>자동 업데이트</translation></message>
+    <message><source>Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open.</source><translation>GitHub 정식 릴리스를 자동 확인합니다. 앱 창과 고정 이미지를 모두 닫으면 다운로드, 설치 후 재시작합니다。</translation></message>
+  </context>
+  <context>
+    <name>UpdateController</name>
+    <message><source>The update will install when application windows and pinned images are closed.</source><translation>앱 창과 고정 이미지를 닫으면 업데이트를 설치합니다.</translation></message>
+  </context>
 </TS>

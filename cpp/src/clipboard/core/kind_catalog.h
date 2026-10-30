@@ -23,4 +23,5 @@ QList<const KindInfo *> offered_kinds();
 QString kind_key(const QString &content_type, const QString &sub_kind);
 // The keys as the Rust core lists them.
 QStringList native_filter_kinds();
+QStringList type_tab_labels();
 }

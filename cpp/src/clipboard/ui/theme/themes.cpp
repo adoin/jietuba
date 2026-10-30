@@ -1,8 +1,20 @@
 #include "clipboard/ui/theme/themes.h"
 #include "settings/tool_settings.h"
+#include "core/ui_theme.h"
 
 namespace jietuba::clipboard {
 namespace {
+void apply_app_accent(Theme &theme) {
+    if(theme.name != "light" && theme.name != "dark") return;
+    const auto &t=theme.name=="dark"?DARK_TOKENS():LIGHT_TOKENS();
+    auto &c=theme.colors;
+    c.bg_primary=c.bg_secondary=c.bg_tertiary=t.window;
+    c.bg_hover=t.surface_hover;
+    c.accent_primary=c.border_accent=c.border_selected=t.accent;
+    c.accent_hover=t.accent_hover;
+    c.text_accent=c.shortcut_key_color=t.accent_text;
+    c.bg_selected=c.bg_selected_highlight=t.accent_soft;
+}
 Theme make_dark() {
     ThemeColors c;
     c.bg_primary = "#1E1E1E";
@@ -115,12 +127,18 @@ ThemeManager::ThemeManager() {
     if (name == "pink" || name == "purple") settings->set_clipboard_theme("light");
     const auto *saved = preset_theme(settings->get_clipboard_theme());
     current_theme_ = saved ? *saved : THEME_LIGHT();
+    apply_app_accent(current_theme_);
+    connect(get_ui_theme(), &UIThemeManager::theme_changed, this, [this] {
+        apply_app_accent(current_theme_);
+        emit theme_changed(current_theme_);
+    });
 }
 
 bool ThemeManager::set_theme(const QString &theme_name) {
     const auto *theme = preset_theme(theme_name);
     if (!theme) return false;
     current_theme_ = *theme;
+    apply_app_accent(current_theme_);
     get_tool_settings_manager()->set_clipboard_theme(theme_name);
     emit theme_changed(current_theme_);
     return true;

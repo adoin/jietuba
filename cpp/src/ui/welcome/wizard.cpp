@@ -93,7 +93,7 @@ void StepItem::apply_welcome_theme() {
         number_weight = 600;
         text_color = theme.text_muted, text_weight = 500;
     }
-    setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString(R"(
         #StepItem {
             background: %1;
             border: 1px solid %2;
@@ -297,9 +297,9 @@ void WelcomeWizard::apply_welcome_theme() {
     const auto theme = welcome_theme();
     const auto s = [](int base) { return dialog_scaled(base); };
     setPalette(UIThemeManager::build_palette(get_ui_theme()->tokens()));
-    shell_->setStyleSheet(QString("#WizardSurface { background: %1; border: 1px solid %2; border-radius: %3px; }").arg(theme.page, theme.border).arg(s(14)));
-    sidebar_->setStyleSheet(QString("#WizardSidebar { background: %1; border: none; border-right: 1px solid %2; border-radius: %3px; }").arg(theme.sidebar, theme.border).arg(s(14)));
-    right_->setStyleSheet(QString("#WizardContent { background: %1; border: none; }").arg(theme.page));
+    apply_style_sheet(shell_, QString("#WizardSurface { background: %1; border: 1px solid %2; border-radius: %3px; }").arg(theme.page, theme.border).arg(s(14)));
+    apply_style_sheet(sidebar_, QString("#WizardSidebar { background: %1; border: none; border-right: 1px solid %2; border-radius: %3px; }").arg(theme.sidebar, theme.border).arg(s(14)));
+    apply_style_sheet(right_, QString("#WizardContent { background: %1; border: none; }").arg(theme.page));
     set_own_style(nav_, QString("background: %1; border: none;").arg(theme.page));
     set_own_style(nav_line_, QString("background: %1; border: none;").arg(theme.separator));
     set_own_style(brand_icon_, QString("background: %1; border: 1px solid %2; border-radius: %3px;").arg(theme.panel, theme.border).arg(s(10)));

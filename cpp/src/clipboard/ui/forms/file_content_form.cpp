@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "clipboard/ui/forms/file_content_form.h"
 #include "clipboard/ui/dialogs/manage_dialog.h"
 #include "clipboard/ui/forms/form_widgets.h"
@@ -42,7 +43,7 @@ void FileDropZone::_apply_theme() {
                        .arg(tokens.accent_soft)
                        .arg(scale_ui(13))
                        .arg(scale_ui(8));
-    setStyleSheet(drag_active_ ? hover_style_ : default_style_);
+    apply_style_sheet(this, drag_active_ ? hover_style_ : default_style_);
 }
 
 QString FileDropZone::extract_first_local_path(const QList<QUrl> &urls) {
@@ -64,7 +65,7 @@ void FileDropZone::dragEnterEvent(QDragEnterEvent *event) {
     if (event->mimeData()->hasUrls() && !extract_first_local_path(event->mimeData()->urls()).isEmpty()) {
         event->acceptProposedAction();
         drag_active_ = true;
-        setStyleSheet(hover_style_);
+        apply_style_sheet(this, hover_style_);
         return;
     }
     event->ignore();
@@ -80,13 +81,13 @@ void FileDropZone::dragMoveEvent(QDragMoveEvent *event) {
 
 void FileDropZone::dragLeaveEvent(QDragLeaveEvent *event) {
     drag_active_ = false;
-    setStyleSheet(default_style_);
+    apply_style_sheet(this, default_style_);
     QFrame::dragLeaveEvent(event);
 }
 
 void FileDropZone::dropEvent(QDropEvent *event) {
     drag_active_ = false;
-    setStyleSheet(default_style_);
+    apply_style_sheet(this, default_style_);
     if (apply_dropped_urls(event->mimeData()->urls())) {
         event->acceptProposedAction();
         return;

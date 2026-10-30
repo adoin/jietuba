@@ -7113,4 +7113,13 @@ Replace it?</translation>
         <translation>Copied files and folders, shown with their icons, names and sizes.</translation>
     </message>
 </context>
+  <context>
+    <name>SettingsDialog</name>
+    <message><source>Automatic Updates</source><translation>Automatic Updates</translation></message>
+    <message><source>Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open.</source><translation>Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open.</translation></message>
+  </context>
+  <context>
+    <name>UpdateController</name>
+    <message><source>The update will install when application windows and pinned images are closed.</source><translation>The update will install when application windows and pinned images are closed.</translation></message>
+  </context>
 </TS>

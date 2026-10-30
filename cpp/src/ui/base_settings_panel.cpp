@@ -1,3 +1,4 @@
+#include "core/material_style.h"
 #include "ui/base_settings_panel.h"
 #include "core/constants.h"
 #include "core/i18n.h"
@@ -17,75 +18,11 @@
 #include <random>
 
 namespace jietuba {
+QColor control_ink() { return QColor(get_ui_theme()->tokens().text); }
+QColor control_sub() { return QColor(get_ui_theme()->tokens().text_muted); }
+QColor control_fill() { return QColor(get_ui_theme()->tokens().window); }
+QColor control_fill_hover() { return QColor(get_ui_theme()->tokens().surface_hover); }
 namespace {
-// The panel background is a fixed texture rather than a blur of what lies
-// behind: pin toolbars float over the live desktop with nothing to blur.
-const QColor PANEL_TOP("#fcfdff");
-const QColor PANEL_BOTTOM("#eef2f8");
-// (x ratio, y ratio, base radius, RGBA): muted glows imitating blurred colour behind.
-struct Glow { double fx, fy, base_radius; int r, g, b, a; };
-constexpr Glow PANEL_GLOWS[] = {
-    {0.10, 0.0, 230, 120, 170, 255, 46},
-    {0.58, 1.2, 260, 190, 160, 255, 34},
-    {0.96, 0.0, 200, 255, 190, 160, 36},
-};
-constexpr double PANEL_NOISE_OPACITY = 0.015;
-const QColor PANEL_HIGHLIGHT(255, 255, 255, 235);
-const QColor PANEL_INNER_RING(255, 255, 255, 190);
-// A dark translucent outer ring: visible on white screenshots, almost invisible on dark ones.
-const QColor PANEL_OUTER_RING(15, 23, 42, 30);
-
-// 64x64 black noise with random alpha; a fixed seed keeps the texture stable across runs.
-const QImage &panel_noise_tile() {
-    static const QImage tile = [] {
-        QImage image(64, 64, QImage::Format_ARGB32_Premultiplied);
-        std::mt19937 generator(7);
-        std::uniform_int_distribution<int> distribution(0, 255);
-        for (int y = 0; y < 64; ++y) {
-            auto *row = reinterpret_cast<quint32 *>(image.scanLine(y));
-            for (int x = 0; x < 64; ++x) row[x] = static_cast<quint32>(distribution(generator)) << 24;
-        }
-        return image;
-    }();
-    return tile;
-}
-
-void draw_panel_background(QPainter *painter, const QRectF &rect, double dpr) {
-    const double radius = scaled_f(PANEL_RADIUS);
-    const double line = scaled_f(1.0);
-    const double half = line / 2;
-    QPainterPath path;
-    path.addRoundedRect(rect.adjusted(half, half, -half, -half), radius, radius);
-    QLinearGradient gradient(rect.topLeft(), rect.bottomLeft());
-    gradient.setColorAt(0, PANEL_TOP);
-    gradient.setColorAt(1, PANEL_BOTTOM);
-    painter->fillPath(path, QBrush(gradient));
-    painter->save();
-    painter->setClipPath(path);
-    for (const auto &glow : PANEL_GLOWS) {
-        QRadialGradient radial(rect.left() + glow.fx * rect.width(), rect.top() + glow.fy * rect.height(), scaled_f(glow.base_radius));
-        radial.setColorAt(0, QColor(glow.r, glow.g, glow.b, glow.a));
-        radial.setColorAt(1, QColor(glow.r, glow.g, glow.b, 0));
-        painter->fillRect(rect, QBrush(radial));
-    }
-    QBrush noise(panel_noise_tile());
-    // One grain per physical pixel.
-    noise.setTransform(QTransform::fromScale(1 / dpr, 1 / dpr));
-    painter->setOpacity(PANEL_NOISE_OPACITY);
-    painter->fillRect(rect, noise);
-    painter->setOpacity(1.0);
-    painter->setPen(QPen(PANEL_HIGHLIGHT, line));
-    const double y = rect.top() + line * 1.5;
-    painter->drawLine(QPointF(rect.left() + radius * 0.6, y), QPointF(rect.right() - radius * 0.6, y));
-    painter->restore();
-    painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(PANEL_INNER_RING, line));
-    const double inset = line * 1.5;
-    painter->drawRoundedRect(rect.adjusted(inset, inset, -inset, -inset), radius - line, radius - line);
-    painter->setPen(QPen(PANEL_OUTER_RING, line));
-    painter->drawPath(path);
-}
-
 QString rgba(const QColor &color) { return QString("rgba(%1, %2, %3, %4)").arg(color.red()).arg(color.green()).arg(color.blue()).arg(color.alpha()); }
 
 // Chevrons sit on the side next to the other button, so both meet at the pill's middle.
@@ -96,7 +33,7 @@ QPixmap chevron_pixmap(int width, int height, bool up) {
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(CONTROL_SUB, scaled_f(1.4), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setPen(QPen(control_sub(), scaled_f(1.4), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     const double near_ = scaled_f(2.2), far_ = scaled_f(5.0);
     const double tip = up ? height - far_ : far_;
     const double base = up ? height - near_ : near_;
@@ -109,7 +46,7 @@ QPixmap chevron_pixmap(int width, int height, bool up) {
 void paint_width_glyph(QPainter *painter, double x, double cy) {
     // Three bars from thin to thick.
     painter->setPen(Qt::NoPen);
-    painter->setBrush(CONTROL_SUB);
+    painter->setBrush(control_sub());
     const double width = scaled_f(12);
     const double heights[] = {1.2, 2.2, 3.4};
     for (int index = 0; index < 3; ++index) {
@@ -122,38 +59,20 @@ void paint_opacity_glyph(QPainter *painter, double x, double cy) {
     // A circle filled on its left half.
     const double radius = scaled_f(5.4);
     const QPointF center(x + scaled_f(6), cy);
-    painter->setPen(QPen(CONTROL_SUB, scaled_f(1.4)));
+    painter->setPen(QPen(control_sub(), scaled_f(1.4)));
     painter->setBrush(Qt::NoBrush);
     painter->drawEllipse(center, radius, radius);
     QPainterPath half;
     half.moveTo(center.x(), center.y() - radius);
     half.arcTo(QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2), 90, 180);
     half.closeSubpath();
-    painter->setBrush(CONTROL_SUB);
+    painter->setBrush(control_sub());
     painter->drawPath(half);
 }
 }
 
 void paint_rounded_panel(QWidget *widget) {
-    const int width = widget->width(), height = widget->height();
-    if (width <= 0 || height <= 0) return;
-    const double dpr = widget->devicePixelRatioF();
-    const auto key = QString("%1|%2|%3|%4").arg(width).arg(height).arg(dpr).arg(scale_factor());
-    auto cached_key = widget->property("_panel_background_key").toString();
-    auto pixmap = widget->property("_panel_background").value<QPixmap>();
-    if (cached_key != key || pixmap.isNull()) {
-        pixmap = QPixmap(static_cast<int>(std::nearbyint(width * dpr)), static_cast<int>(std::nearbyint(height * dpr)));
-        pixmap.setDevicePixelRatio(dpr);
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        painter.setRenderHint(QPainter::Antialiasing);
-        draw_panel_background(&painter, QRectF(0, 0, width, height), dpr);
-        painter.end();
-        widget->setProperty("_panel_background_key", key);
-        widget->setProperty("_panel_background", pixmap);
-    }
-    QPainter painter(widget);
-    painter.drawPixmap(0, 0, pixmap);
+    paint_material_window(widget, scaled(PANEL_RADIUS));
 }
 
 QColor accent_color() { return get_theme().theme_color(); }
@@ -182,7 +101,7 @@ void style_step_button(QToolButton *button, const QString &direction) {
 }
 
 void paint_line_style_preview(QPainter *painter, const QRectF &rect, const QVariant &style) {
-    QPen pen(CONTROL_INK, scaled_f(2.0), Qt::SolidLine, Qt::RoundCap);
+    QPen pen(control_ink(), scaled_f(2.0), Qt::SolidLine, Qt::RoundCap);
     const auto value = style.toString();
     if (value == "dashed") {
         pen.setStyle(Qt::CustomDashLine);
@@ -226,15 +145,15 @@ QString combo_popup_qss() {
             background-color: %2;
             color: %3;
         }
-    )").arg(rgba(DIVIDER_COLOR), accent_soft, CONTROL_INK.name(), CSS_FONT_FAMILY).arg(scaled(12)).arg(scaled(2)).arg(scaled(3)).arg(scaled(6)).arg(scaled(18))
-        .arg(rgba(CONTROL_FILL));
+    )").arg(rgba(DIVIDER_COLOR), accent_soft, control_ink().name(), CSS_FONT_FAMILY).arg(scaled(12)).arg(scaled(2)).arg(scaled(3)).arg(scaled(6)).arg(scaled(18))
+        .arg(rgba(control_fill()));
 }
 
 QString build_settings_panel_stylesheet(bool combo_enabled, const QString &, int combo_min_width, int combo_max_width, bool) {
     const int font_px = scaled(12);
     const auto accent = accent_color();
     const auto accent_soft = QString("rgba(%1, %2, %3, 0.3)").arg(accent.red()).arg(accent.green()).arg(accent.blue());
-    const auto ink = CONTROL_INK.name();
+    const auto ink = control_ink().name();
     QString combo_block;
     if (combo_enabled) {
         combo_block = QString(R"(
@@ -331,7 +250,7 @@ QRect StepperWidget::pill_rect() const {
 void StepperWidget::apply_scale_sizes() {
     QWidget::setFixedHeight(scaled(BASE_HEIGHT));
     set_own_style(label_, QString("background: transparent; color: %1; border: none; font-family: %2; font-size: %3px; font-weight: bold;")
-                              .arg(CONTROL_INK.name(), CSS_FONT_FAMILY).arg(scaled(12)));
+                              .arg(control_ink().name(), CSS_FONT_FAMILY).arg(scaled(12)));
     style_step_button(up_btn_, "up");
     style_step_button(down_btn_, "down");
     layout_children();
@@ -358,10 +277,8 @@ void StepperWidget::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     const QRectF pill(pill_rect());
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(underMouse() ? CONTROL_FILL_HOVER : CONTROL_FILL);
     const double radius = pill.height() / 2;
-    painter.drawRoundedRect(pill, radius, radius);
+    paint_material_surface(painter,pill,radius,underMouse()?control_fill_hover():control_fill(),MaterialDepth::Recessed);
     if (glyph_ == "width") paint_width_glyph(&painter, 0.0, pill.center().y());
     else if (glyph_ == "opacity") paint_opacity_glyph(&painter, 0.0, pill.center().y());
 }
@@ -434,9 +351,7 @@ void PillComboBox::paintEvent(QPaintEvent *) {
     painter.setRenderHint(QPainter::Antialiasing);
     const QRectF r(rect());
     const double radius = r.height() / 2;
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(underMouse() ? CONTROL_FILL_HOVER : CONTROL_FILL);
-    painter.drawRoundedRect(r, radius, radius);
+    paint_material_surface(painter,r,radius,underMouse()?control_fill_hover():control_fill(),MaterialDepth::Recessed);
     const double arrow = scaled_f(BASE_ARROW_COLUMN);
     const auto content = r.adjusted(scaled_f(BASE_PADDING_LEFT), 0, -arrow, 0);
     const auto icon = currentIndex() >= 0 ? itemIcon(currentIndex()) : QIcon();
@@ -445,14 +360,14 @@ void PillComboBox::paintEvent(QPaintEvent *) {
     } else if (!icon.isNull()) {
         icon.paint(&painter, content.toRect(), Qt::AlignCenter);
     } else {
-        painter.setPen(CONTROL_INK);
+        painter.setPen(control_ink());
         painter.setFont(font());
         const auto text = fontMetrics().elidedText(currentText(), Qt::ElideRight, static_cast<int>(content.width()));
         painter.drawText(content, static_cast<int>(text_alignment_ | Qt::AlignVCenter), text);
     }
     const double cx = r.right() - scaled_f(15.5), cy = r.center().y();
     const double dx = scaled_f(3.5), dy = scaled_f(1.8);
-    painter.setPen(QPen(CONTROL_SUB, scaled_f(1.4), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setPen(QPen(control_sub(), scaled_f(1.4), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     const QPointF points[] = {{cx - dx, cy - dy}, {cx, cy + dy}, {cx + dx, cy - dy}};
     painter.drawPolyline(points, 3);
 }
@@ -478,9 +393,7 @@ void PillFrame::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     const QRectF r(rect());
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(underMouse() ? CONTROL_FILL_HOVER : CONTROL_FILL);
-    painter.drawRoundedRect(r, r.height() / 2, r.height() / 2);
+    paint_material_surface(painter,r,r.height()/2,underMouse()?control_fill_hover():control_fill(),MaterialDepth::Recessed);
 }
 
 void PillFrame::enterEvent(QEnterEvent *event) {
@@ -614,7 +527,7 @@ void HoverPopup::set_extra_stylesheet(const QString &qss) {
     apply_scale();
 }
 
-void HoverPopup::apply_scale() { setStyleSheet("#HoverPopup { background: transparent; border: none; }" + extra_qss_); }
+void HoverPopup::apply_scale() { apply_style_sheet(this, "#HoverPopup { background: transparent; border: none; }" + extra_qss_); }
 
 void HoverPopup::paintEvent(QPaintEvent *) { paint_rounded_panel(this); }
 
@@ -637,7 +550,7 @@ void HoverPopup::leaveEvent(QEvent *event) {
 }
 
 BaseSettingsPanel::BaseSettingsPanel(QWidget *parent) : QWidget(parent), current_size(5) {
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
 }
 
 void BaseSettingsPanel::paintEvent(QPaintEvent *) { paint_rounded_panel(this); }
@@ -688,7 +601,7 @@ void BaseSettingsPanel::apply_scale_sizes() {
 
 void BaseSettingsPanel::apply_scale() {
     // Only display sizes change; values, colours and tool state stay.
-    setStyleSheet(build_stylesheet());
+    apply_style_sheet(this, build_stylesheet());
     apply_scale_sizes();
     adjustSize();
     update();

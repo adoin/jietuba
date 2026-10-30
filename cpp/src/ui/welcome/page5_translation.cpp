@@ -138,7 +138,7 @@ void TranslationPage::build_credential_page(const ProviderMetadata &metadata) {
         form->addRow(label, edit);
     }
     if (!metadata.help_url.isEmpty()) {
-        auto *hint = new QLabel(QString("<a href=\"%1\" style=\"color:%2;\">%3</a>").arg(metadata.help_url, ACCENT, welcome_tr(metadata.help_label.toUtf8().constData())));
+        auto *hint = new QLabel(QString("<a href=\"%1\" style=\"color:%2;\">%3</a>").arg(metadata.help_url, get_ui_theme()->tokens().accent, welcome_tr(metadata.help_label.toUtf8().constData())));
         hint->setOpenExternalLinks(true);
         set_welcome_label_style(hint, "muted", 11, 400);
         form->addRow("", hint);

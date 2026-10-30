@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "clipboard/ui/panels/setting_panel.h"
 #include "clipboard/ui/theme/themes.h"
 #include "core/ui_scale.h"
@@ -45,10 +46,10 @@ namespace {
 void add_multi_paste_menu(QMenu *menu, const SettingMenuOptions &o) {
     const auto &tr = o.tr;
     QMenu *multi_menu = menu->addMenu(tr("Multi-Select Paste"));
-    multi_menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(multi_menu, o.menu_style);
 
     QMenu *separator_menu = multi_menu->addMenu(tr("Separator"));
-    separator_menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(separator_menu, o.menu_style);
     bool is_preset = false;
     for (const auto &[label, value] : MULTI_PASTE_SEPARATORS()) {
         QAction *act = separator_menu->addAction(tr(label));
@@ -78,7 +79,7 @@ void add_multi_paste_menu(QMenu *menu, const SettingMenuOptions &o) {
     separator_menu->addAction(custom_action);
 
     QMenu *order_menu = multi_menu->addMenu(tr("Order"));
-    order_menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(order_menu, o.menu_style);
     for (const auto &[key, label] : {std::make_pair(QString("oldest_first"), tr("First Selected First")), std::make_pair(QString("newest_first"), tr("Last Selected First"))}) {
         QAction *act = order_menu->addAction(label);
         act->setCheckable(true);
@@ -99,7 +100,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
     auto *menu = new QMenu(parent);
     // The reference keeps every closed menu as a child of the window; it is freed here once closed.
     menu->setAttribute(Qt::WA_DeleteOnClose);
-    menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(menu, o.menu_style);
 
     auto toggle_action = [&](const char *label, bool is_checked, const std::function<void(bool)> &callback) {
         QAction *act = menu->addAction(tr(label));
@@ -119,7 +120,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
 
     // ── Opacity submenu ──
     QMenu *opacity_menu = menu->addMenu(tr("Window Opacity"));
-    opacity_menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(opacity_menu, o.menu_style);
     for (const auto &option : o.opacity_options) {
         const int percent = option.toInt();
         QAction *act = opacity_menu->addAction(percent == 0 ? tr("Opaque") : QString("%1%").arg(percent));
@@ -131,7 +132,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
 
     // ── Font size submenu ──
     QMenu *font_menu = menu->addMenu(tr("Font Size"));
-    font_menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(font_menu, o.menu_style);
     for (const auto &option : o.font_size_options) {
         const int size = option.toInt();
         QAction *act = font_menu->addAction(QString("%1px").arg(size));
@@ -143,7 +144,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
 
     if (o.on_set_display_lines) {
         QMenu *lines_menu = menu->addMenu(tr("Max Display Lines"));
-        lines_menu->setStyleSheet(o.menu_style);
+        apply_style_sheet(lines_menu, o.menu_style);
         for (int lines = 1; lines <= 5; ++lines) {
             QAction *act = lines_menu->addAction(QCoreApplication::translate("ClipboardWindow", "%n line(s)", nullptr, lines));
             act->setCheckable(true);
@@ -156,7 +157,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
     // ── Image size submenu ──
     if (o.on_set_image_size) {
         QMenu *image_menu = menu->addMenu(tr("Image Size"));
-        image_menu->setStyleSheet(o.menu_style);
+        apply_style_sheet(image_menu, o.menu_style);
         for (const auto &[key, label] : {std::make_pair(QString("small"), tr("Small")), std::make_pair(QString("medium"), tr("Medium")), std::make_pair(QString("large"), tr("Large"))}) {
             QAction *act = image_menu->addAction(label);
             act->setCheckable(true);
@@ -168,7 +169,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
 
     // ── Theme submenu ──
     QMenu *theme_menu = menu->addMenu(tr("Theme"));
-    theme_menu->setStyleSheet(o.menu_style);
+    apply_style_sheet(theme_menu, o.menu_style);
     struct ThemeButton {
         QString name;
         QPushButton *button;
@@ -185,7 +186,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
             btn->setIconSize(QSize(scaled(14), scaled(14)));
             const int bw = is_sel ? scaled(2) : 1;
             const QString bc = is_sel ? accent : "#CCCCCC";
-            btn->setStyleSheet(QString(R"(
+            apply_style_sheet(btn, QString(R"(
                 QPushButton {
                     background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
                         stop:0 %1, stop:0.5 %1,
@@ -228,7 +229,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
     // ── Group bar position submenu ──
     if (o.on_set_group_bar_position) {
         QMenu *bar_pos_menu = menu->addMenu(tr("Group Bar Position"));
-        bar_pos_menu->setStyleSheet(o.menu_style);
+        apply_style_sheet(bar_pos_menu, o.menu_style);
         for (const auto &[key, label] : {std::make_pair(QString("right"), tr("Right")), std::make_pair(QString("left"), tr("Left")), std::make_pair(QString("top"), tr("Top"))}) {
             QAction *act = bar_pos_menu->addAction(label);
             act->setCheckable(true);
@@ -240,7 +241,7 @@ QMenu *show_setting_menu(QWidget *parent, const SettingMenuOptions &o) {
 
     if (o.on_set_open_position) {
         QMenu *open_pos_menu = menu->addMenu(tr("Window Position"));
-        open_pos_menu->setStyleSheet(o.menu_style);
+        apply_style_sheet(open_pos_menu, o.menu_style);
         for (const auto &[key, label] : {std::make_pair(QString("cursor"), tr("Follow Mouse")), std::make_pair(QString("previous"), tr("Last Position"))}) {
             QAction *act = open_pos_menu->addAction(label);
             act->setCheckable(true);

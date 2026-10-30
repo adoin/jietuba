@@ -152,6 +152,7 @@ signals:
     void new_item_received(const std::optional<jietuba::clipboard::ClipboardItem> &item);
 
 protected:
+    void paintEvent(QPaintEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
@@ -162,6 +163,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    QFrame *list_surface_ = nullptr;
     void on_data_loaded(const QList<ClipboardItem> &items, bool is_first_page);
     void on_item_inserted(const ClipboardItem &item, int row);
     void on_item_moved_to_top(qint64 item_id, int row);

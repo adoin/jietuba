@@ -7581,4 +7581,13 @@ Replace it?</source>
         <translation>複製的檔案和資料夾，顯示圖示、名稱和大小。</translation>
     </message>
 </context>
+  <context>
+    <name>SettingsDialog</name>
+    <message><source>Automatic Updates</source><translation>自動更新</translation></message>
+    <message><source>Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open.</source><translation>自動檢查 GitHub 正式版。在所有程式視窗和釘圖關閉後下載、安裝並重新啟動。</translation></message>
+  </context>
+  <context>
+    <name>UpdateController</name>
+    <message><source>The update will install when application windows and pinned images are closed.</source><translation>關閉程式視窗和釘圖後將自動安裝更新。</translation></message>
+  </context>
 </TS>

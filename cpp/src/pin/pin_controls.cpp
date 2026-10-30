@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "pin/pin_controls.h"
 #include "core/i18n.h"
 #include "core/resource_manager.h"
@@ -50,7 +51,7 @@ QPushButton *PinControlButtons::create_button(const QString &icon_name, const ch
     button->setFixedSize(BUTTON_SIZE, BUTTON_SIZE);
     button->setIcon(ResourceManager::get_icon(ResourceManager::get_resource_path("svg/" + icon_name)));
     button->setIconSize(QSize(BUTTON_SIZE, BUTTON_SIZE));
-    button->setStyleSheet(style);
+    apply_style_sheet(button, style);
     // The pin window's translation context.
     button->setToolTip(i18n_tr(tooltip, "PinWindow"));
     button->hide();

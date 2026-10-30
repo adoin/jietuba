@@ -21,7 +21,7 @@ struct Metrics {
 Metrics metrics(bool large) { return large ? Metrics{14, 7, 20} : Metrics{12, 4, 14}; }
 }
 
-SegmentedWidget::SegmentedWidget(QWidget *parent) : QWidget(parent), indicator_(ACCENT), group_(new QButtonGroup(this)), layout_(new QHBoxLayout(this)) {
+SegmentedWidget::SegmentedWidget(QWidget *parent) : QWidget(parent), indicator_(get_ui_theme()->tokens().accent), group_(new QButtonGroup(this)), layout_(new QHBoxLayout(this)) {
     group_->setExclusive(true);
     layout_->setContentsMargins(dialog_scaled(3), dialog_scaled(3), dialog_scaled(3), dialog_scaled(3));
     layout_->setSpacing(dialog_scaled(3));

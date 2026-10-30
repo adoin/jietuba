@@ -1,5 +1,7 @@
 #include "ui/fluent_lite/frameless.h"
 #include "ui/fluent_lite/theme.h"
+#include "core/ui_scale.h"
+#include <QPainterPath>
 #include <QEnterEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -11,6 +13,17 @@
 #endif
 
 namespace jietuba {
+namespace {
+void place_caption(QWidget *window, QWidget *bar) {
+    if (!bar) return;
+    const int inset=window->isMaximized()?0:widget_scaled(window,5);
+    bar->setGeometry(inset,inset,std::max(0,window->width()-2*inset),bar->height());
+    QPainterPath clip;
+    const int radius=window->isMaximized()?0:widget_scaled(window,8);
+    clip.addRoundedRect(QRectF(0,0,bar->width(),bar->height()+radius),radius,radius);
+    bar->setMask(QRegion(clip.toFillPolygon().toPolygon()));
+}
+}
 void FramelessHelper::install() {
     window_->setWindowFlags(window_->windowFlags() | Qt::FramelessWindowHint);
 #ifdef Q_OS_WIN
@@ -74,6 +87,9 @@ bool FramelessHelper::native_event(const QByteArray &event_type, void *message, 
 }
 
 FramelessWindow::FramelessWindow(QWidget *parent) : QWidget(parent), helper_(this) {
+    // Request an alpha-capable native surface before install() creates the HWND.
+    // Enabling translucency afterwards can leave transparent paint black on Windows.
+    setAttribute(Qt::WA_TranslucentBackground, true);
     helper_.install();
     title_bar_ = new TitleBar(this);
     title_bar_->raise();
@@ -84,7 +100,7 @@ void FramelessWindow::setTitleBar(TitleBar *title_bar) {
     title_bar_ = title_bar;
     title_bar_->setParent(this);
     title_bar_->raise();
-    title_bar_->resize(width(), title_bar_->height());
+    place_caption(this,title_bar_);
 }
 
 bool FramelessWindow::nativeEvent(const QByteArray &event_type, void *message, qintptr *result) {
@@ -93,10 +109,11 @@ bool FramelessWindow::nativeEvent(const QByteArray &event_type, void *message, q
 
 void FramelessWindow::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    if (title_bar_) title_bar_->resize(width(), title_bar_->height());
+    place_caption(this,title_bar_);
 }
 
 FramelessDialog::FramelessDialog(QWidget *parent) : QDialog(parent), helper_(this) {
+    setAttribute(Qt::WA_TranslucentBackground, true);
     helper_.install();
     title_bar_ = new TitleBar(this);
     title_bar_->minBtn->hide();
@@ -110,7 +127,7 @@ void FramelessDialog::setTitleBar(TitleBar *title_bar) {
     title_bar_ = title_bar;
     title_bar_->setParent(this);
     title_bar_->raise();
-    title_bar_->resize(width(), title_bar_->height());
+    place_caption(this,title_bar_);
 }
 
 bool FramelessDialog::nativeEvent(const QByteArray &event_type, void *message, qintptr *result) {
@@ -119,7 +136,7 @@ bool FramelessDialog::nativeEvent(const QByteArray &event_type, void *message, q
 
 void FramelessDialog::resizeEvent(QResizeEvent *event) {
     QDialog::resizeEvent(event);
-    if (title_bar_) title_bar_->resize(width(), title_bar_->height());
+    place_caption(this,title_bar_);
 }
 
 FrostedFramelessDialog::FrostedFramelessDialog(QWidget *parent) : FramelessDialog(parent) {
@@ -130,6 +147,7 @@ FrostedFramelessDialog::FrostedFramelessDialog(QWidget *parent) : FramelessDialo
 void FrostedFramelessDialog::paintEvent(QPaintEvent *) { paint_solid_background(this, frosted_corner_radius_); }
 
 TitleBarButton::TitleBarButton(QWidget *parent) : QAbstractButton(parent) {
+    setProperty("_materialNative",true);
     setCursor(Qt::ArrowCursor);
     setFixedSize(46, 32);
 }

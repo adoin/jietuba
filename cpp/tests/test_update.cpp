@@ -5,6 +5,11 @@
 #include "core/updater_process.h"
 #include "main_app.h"
 #include "ui/update_dialog.h"
+#include "ui/settings_ui/dialog.h"
+#include "ui/settings_ui/pages.h"
+#include "ui/fluent_lite/cards.h"
+#include "settings/tool_settings.h"
+#include <QSettings>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -82,6 +87,8 @@ public:
 class FakeHost : public UpdateHost {
 public:
     QString reason;
+    bool automatic_idle = true;
+    bool automatic_update_ready() override { return automatic_idle && reason.isEmpty(); }
     std::pair<bool, QString> prepare_result{true, {}};
     int quit_count = 0;
     int cancel_count = 0;
@@ -261,6 +268,56 @@ private slots:
         runner_->finish();
         QCOMPARE(host_.quit_count, 1);
         QVERIFY(!controller_->dialog || !controller_->dialog->isVisible());
+    }
+    void automaticUpdateWaitsForIdleAndUsesTheExistingHandoff() {
+        host_=FakeHost();runner_=new FakeRunner;controller_=new UpdateController(&host_,nullptr,runner_);
+        auto *checker=controller_->findChild<GitHubReleaseChecker *>("automaticReleaseChecker");QVERIFY(checker);
+        host_.automatic_idle=false;controller_->set_automatic_updates(true);
+        emit checker->release_found(release());QVERIFY(runner_->calls.isEmpty());
+        host_.automatic_idle=true;controller_->automatic_tick();
+        QCOMPARE(runner_->calls.size(),1);QCOMPARE(runner_->calls.first().first,QString("download"));
+        host_.automatic_idle=false;downloaded();QCOMPARE(runner_->calls.size(),1);
+        host_.automatic_idle=true;controller_->automatic_tick();QCOMPARE(runner_->calls.last().first,QString("apply"));
+        emit runner_->event_received("ready",ID,{});QCOMPARE(runner_->sent,QStringList{"go"});
+        emit runner_->event_received("handed_off",ID,{});runner_->finish();QCOMPARE(host_.quit_count,1);
+    }
+    void automaticUpdateTogglePersistsItsChoice() {
+        QSettings settings(local_->filePath("settings.ini"),QSettings::IniFormat);
+        ToolSettingsManager config(settings);QVERIFY(!config.get_automatic_updates());
+        SettingsDialog dialog(&config);
+        auto *page=create_about_page(&dialog);
+        auto *toggle=page->findChild<SwitchSettingCard *>("automaticUpdatesToggle");QVERIFY(toggle);QVERIFY(toggle->isEnabled());
+        toggle->setChecked(true);QVERIFY(config.get_automatic_updates());
+        QSettings saved(local_->filePath("settings.ini"),QSettings::IniFormat);
+        QVERIFY(saved.value("app/automatic_updates").toBool());
+        toggle->setChecked(false);QVERIFY(!config.get_automatic_updates());
+    }
+    void automaticHandoffRechecksActivityAfterStaging() {
+        host_=FakeHost();runner_=new FakeRunner;controller_=new UpdateController(&host_,nullptr,runner_);
+        controller_->set_automatic_updates(true);
+        auto *checker=controller_->findChild<GitHubReleaseChecker *>("automaticReleaseChecker");
+        emit checker->release_found(release());downloaded();
+        host_.automatic_idle=false;emit runner_->event_received("ready",ID,{});
+        QVERIFY(runner_->sent.contains("cancel"));QVERIFY(!runner_->sent.contains("go"));
+        runner_->finish();QCOMPARE(host_.quit_count,0);
+    }
+    void disabledAutomaticUpdatesNeverDownloadAndTurningOffCancels() {
+        host_=FakeHost();runner_=new FakeRunner;controller_=new UpdateController(&host_,nullptr,runner_);
+        auto *checker=controller_->findChild<GitHubReleaseChecker *>("automaticReleaseChecker");QVERIFY(checker);
+        emit checker->release_found(release());controller_->automatic_tick();QVERIFY(runner_->calls.isEmpty());
+        controller_->set_automatic_updates(true);
+        auto older=release();older.tag_name="release-0.0.1";emit checker->release_found(older);QVERIFY(runner_->calls.isEmpty());
+        emit checker->release_found(release());QCOMPARE(runner_->calls.size(),1);
+        controller_->set_automatic_updates(false);QVERIFY(runner_->sent.contains("cancel"));
+        downloaded();QCOMPARE(runner_->calls.size(),1);QCOMPARE(host_.quit_count,0);
+    }
+    void automaticCheckerRunsWithoutOpeningTheUpdateDialogWhenCurrent() {
+        host_=FakeHost();runner_=new FakeRunner;controller_=new UpdateController(&host_,nullptr,runner_);
+        qputenv("JIETUBA_FAKE_UPDATER","check-up-to-date");
+        controller_->set_automatic_updates(true);controller_->automatic_tick();
+        auto *checker=controller_->findChild<GitHubReleaseChecker *>("automaticReleaseChecker");QSignalSpy found(checker,&GitHubReleaseChecker::release_found);
+        QTRY_COMPARE(found.size(),1);QVERIFY(!controller_->dialog);QVERIFY(runner_->calls.isEmpty());
+        controller_->automatic_tick();QTest::qWait(80);QCOMPARE(found.size(),1);
     }
 
     void busyKeepsDownloadAndRetriesInstallOnly() {

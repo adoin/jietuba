@@ -1,4 +1,5 @@
 #include "ui/fluent_lite/theme.h"
+#include "core/material_style.h"
 #include "core/resource_manager.h"
 #include <QHash>
 #include <QLinearGradient>
@@ -16,7 +17,7 @@ const QStringList &FONT_FAMILIES() {
     return families;
 }
 
-const UIThemeTokens &ui_tokens(const QWidget *) { return get_ui_theme()->tokens(); }
+const UIThemeTokens &ui_tokens(const QWidget *widget) { return material_tokens(widget); }
 
 QString scrollbar_qss(const QWidget *widget) {
     const auto &t = ui_tokens(widget);
@@ -92,25 +93,6 @@ QColor css_color(const QString &value) {
 QIcon tinted_icon(const IconSource &icon, const QString &color) { return tinted_from_path(icon_path(icon), color); }
 
 void paint_solid_background(QWidget *widget, int radius) {
-    QPainter painter(widget);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(widget->rect(), Qt::transparent);
-    const auto rect = QRectF(widget->rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    QLinearGradient gradient(0, 0, 0, widget->height());
-    const auto &tokens = ui_tokens(widget);
-    gradient.setColorAt(0.0, QColor::fromString(tokens.window_top));
-    gradient.setColorAt(1.0, QColor::fromString(tokens.window_bottom));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    painter.setBrush(gradient);
-    painter.setPen(Qt::NoPen);
-    painter.drawRoundedRect(rect, radius, radius);
-    QPen pen = painter.pen();
-    pen.setStyle(Qt::SolidLine);
-    pen.setColor(QColor::fromString(tokens.window_border));
-    pen.setWidthF(1.0);
-    painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRoundedRect(rect, radius, radius);
+    paint_material_window(widget, radius);
 }
 }

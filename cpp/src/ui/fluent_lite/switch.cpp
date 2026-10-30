@@ -1,5 +1,6 @@
 #include "ui/fluent_lite/switch.h"
 #include "core/ui_scale.h"
+#include "core/material_style.h"
 #include "ui/fluent_lite/theme.h"
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -66,19 +67,17 @@ void SwitchButton::paintEvent(QPaintEvent *) {
     painter.setRenderHint(QPainter::Antialiasing);
     const QRectF track(0.5, 0.5, width() - 1, height() - 1);
     const QColor off = QColor::fromString(ui_tokens(this).switch_off);
-    const QColor on = QColor::fromString(ACCENT);
+    const QColor on = QColor::fromString(get_ui_theme()->tokens().accent);
     int r = static_cast<int>(off.red() + (on.red() - off.red()) * progress_);
     int g = static_cast<int>(off.green() + (on.green() - off.green()) * progress_);
     int b = static_cast<int>(off.blue() + (on.blue() - off.blue()) * progress_);
     if (!isEnabled()) r = 205, g = 211, b = 207;
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(r, g, b));
-    painter.drawRoundedRect(track, track.height() / 2, track.height() / 2);
+    paint_material_surface(painter,track,track.height()/2,QColor(r,g,b),MaterialDepth::Recessed);
     // Measured from the real height, so the knob stays centred at any size.
     const double margin = height() * 3.0 / 26.0;
     const double knob = height() - margin * 2;
     const double x = margin + (width() - knob - margin * 2) * progress_;
-    painter.setBrush(QColor("#FFFFFF"));
-    painter.drawEllipse(QRectF(x, margin, knob, knob));
+    paint_material_surface(painter,QRectF(x,margin,knob,knob),knob/2,QColor("#FFFFFF"),MaterialDepth::Raised);
 }
 }

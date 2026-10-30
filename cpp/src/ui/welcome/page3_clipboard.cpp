@@ -575,7 +575,7 @@ private:
             const bool selected = swatch.name == current_;
             const QString border = selected ? theme.accent : theme.border_strong;
             const int border_width = selected ? 2 : 1;
-            swatch.button->setStyleSheet(QString(R"(
+            apply_style_sheet(swatch.button, QString(R"(
                 QPushButton {
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                         stop:0 %1, stop:0.5 %1,

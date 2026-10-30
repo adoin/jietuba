@@ -64,6 +64,7 @@
 #include <QXmlStreamReader>
 #include <QTest>
 #include <QTimer>
+#include <QWindow>
 #include <QToolButton>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -401,7 +402,8 @@ private slots:
         QVERIFY(toolbar.scan_code_btn->parentWidget() != &toolbar || toolbar.scan_code_btn->isHidden());
         QVERIFY(toolbar.copy_btn->isHidden());
         QCOMPARE(toolbar.more_btn->width(), toolbar.drag_handle->width());
-        QCOMPARE(toolbar.more_btn->geometry().right(), toolbar.rect().right());
+        QCOMPARE(toolbar.more_btn->geometry().right(), toolbar.rect().right()-scaled(8));
+        QCOMPARE(toolbar.drag_handle->x(),toolbar.width()-toolbar.more_btn->geometry().right()-1);
 
         const QMap<QString, QString> folded = {{"text_recognize", tl::MORE}, {"scan_code", tl::MORE}, {"spotlight", tl::MORE}, {"watermark", tl::MORE}};
         tl::save_layout(*config_, layout_with("pin", folded));
@@ -1498,6 +1500,26 @@ private slots:
         use_test_app_icon();
         ColorPickerDialog dialog(QColor("#3366CC"));
         VERIFY_STANDARD_CAPTION(dialog);
+    }
+
+    void framelessSurfacesKeepTransparentWindowEdges() {
+        ColorPickerDialog dialog(QColor("#3366CC"));
+        FramelessWindow window;
+        for(auto *surface : {static_cast<QWidget *>(&dialog),static_cast<QWidget *>(&window)}) {
+            QVERIFY(surface->testAttribute(Qt::WA_TranslucentBackground));
+            surface->winId();
+            QVERIFY(surface->windowHandle());
+            if(QGuiApplication::platformName()=="windows") {
+                // Check the actual native surface, not just the QWidget attribute.
+                QVERIFY(surface->windowHandle()->format().alphaBufferSize()>=8);
+            }
+        }
+        dialog.show();
+        QApplication::processEvents();
+        const auto image=dialog.grab().toImage();
+        QCOMPARE(image.pixelColor(0,0).alpha(),0);
+        const auto edge=image.pixelColor(1,image.height()/2);
+        QVERIFY(edge.alpha()<100);
     }
 
     // The old per-window divergences, rebuilt on a plain bar: each one must fail the shared caption check.

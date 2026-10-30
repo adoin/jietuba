@@ -54,7 +54,7 @@ void RoundedSliderPopup::apply_scale() {
     row_layout_->setSpacing(scaled(6));
     slider_->setFixedWidth(scaled(BASE_SLIDER_WIDTH));
     const auto thx = get_theme().theme_color_hex();
-    slider_->setStyleSheet(QString(R"(
+    apply_style_sheet(slider_, QString(R"(
             QSlider::groove:horizontal {
                 height: %1px; background: #555; border-radius: %2px;
             }

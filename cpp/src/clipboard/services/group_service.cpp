@@ -79,13 +79,22 @@ QString build_delete_group_confirm_message(const std::function<QString(const cha
     return translate("Are you sure you want to delete this group?") + "\n" + translate("Items in the group will be moved back to clipboard history.");
 }
 
-void seed_starter_groups(ClipboardManager &manager, ToolSettingsManager *config, const std::function<QString(const char *)> &translate) {
-    if (config->get_clipboard_starter_groups_seeded()) return;
-    // Someone who already made groups knows the feature; an unreadable database is retried next start.
-    if (manager.get_groups().isEmpty()) {
-        if (!manager.create_group(translate("Favorites"), std::nullopt, QString::fromUtf8("⭐"))) return;
-        manager.create_group(translate("Image"), std::nullopt, std::nullopt, static_cast<int>(GroupType::FILTER), FilterRule::of_kind("image"));
+QString group_name_without_type_collision(const QString &name, const QList<Group> &groups, std::optional<qint64> exclude_group_id) {
+    const QString base = name.trimmed();
+    QSet<QString> reserved;
+    for (const auto &label : type_tab_labels()) reserved.insert(label.toCaseFolded());
+    reserved.insert(QStringLiteral("all"));
+    for (const auto *kind : offered_kinds()) reserved.insert(QString::fromUtf8(kind->label).toCaseFolded());
+    if (!reserved.contains(base.toCaseFolded())) return base;
+    QSet<QString> used = reserved;
+    for (const auto &group : groups) {
+        if (exclude_group_id && group.id == *exclude_group_id) continue;
+        used.insert(group.name.trimmed().toCaseFolded());
     }
-    config->set_clipboard_starter_groups_seeded(true);
+    for (int suffix = 1;; ++suffix) {
+        const QString candidate = base + QString::number(suffix);
+        if (!used.contains(candidate.toCaseFolded())) return candidate;
+    }
 }
+
 }

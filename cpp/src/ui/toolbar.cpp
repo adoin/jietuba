@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/toolbar.h"
 #include "plugins/extension_host.h"
 #include "canvas/canvas_host.h"
@@ -37,6 +38,8 @@ QString toolbar_tr(const char *text) { return i18n_tr(text, "Toolbar"); }
 
 const QColor GRIP_DOT_COLOR(0x5F, 0x63, 0x68);
 const QColor GRIP_DOT_COLOR_IDLE(0xB4, 0xB8, 0xBE);
+constexpr int HANDLE_HIT_WIDTH = 24;
+constexpr int HANDLE_EDGE_INSET = 8;
 
 // Three vertical dots centred in rect.
 void paint_vertical_dots(QPainter &painter, const QRect &rect, const QColor &color) {
@@ -96,11 +99,14 @@ void ToolbarDragHandle::paintEvent(QPaintEvent *) {
     // No theme fill: blends with the white toolbar. Darker dots hint that double-click resets.
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    paint_vertical_dots(painter, rect(), manual_mode_ ? GRIP_DOT_COLOR : GRIP_DOT_COLOR_IDLE);
+    const auto &tokens=get_ui_theme()->tokens();
+    paint_vertical_dots(painter, rect(), QColor(manual_mode_ ? tokens.text_muted : tokens.text_disabled));
     painter.end();
 }
 
 ToolbarMoreHandle::ToolbarMoreHandle(QWidget *parent) : QAbstractButton(parent) {
+    setProperty("_materialCompact",true);
+    setProperty("_materialNative",true);
     setCursor(Qt::PointingHandCursor);
     setFocusPolicy(Qt::NoFocus);
 }
@@ -108,12 +114,12 @@ ToolbarMoreHandle::ToolbarMoreHandle(QWidget *parent) : QAbstractButton(parent) 
 void ToolbarMoreHandle::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    paint_vertical_dots(painter, rect(), GRIP_DOT_COLOR);
+    paint_vertical_dots(painter, rect(), QColor(get_ui_theme()->tokens().text_muted));
     painter.end();
 }
 
 ToolbarMorePopup::ToolbarMorePopup(QWidget *parent) : QWidget(parent) {
-    setAttribute(Qt::WA_TranslucentBackground, true);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
     adjust_btn = new QPushButton(this);
     adjust_btn->setObjectName("more_adjust");
     adjust_btn->setIcon(fluent_icon(FluentIcon::Setting));
@@ -122,7 +128,7 @@ ToolbarMorePopup::ToolbarMorePopup(QWidget *parent) : QWidget(parent) {
 }
 
 void ToolbarMorePopup::apply_scale() {
-    setStyleSheet(button_qss() + QString(R"(
+    apply_style_sheet(this, button_qss() + QString(R"(
             QPushButton#more_adjust {
                 color: #5F6368;
                 font-size: %1px;
@@ -134,7 +140,7 @@ void ToolbarMorePopup::apply_scale() {
 }
 
 void ToolbarMorePopup::set_buttons(const QList<QAbstractButton *> &buttons, const QSize &cell) {
-    const int pad = scaled(BASE_PADDING);
+    const int pad = scaled(std::max(BASE_PADDING,8));
     const int count = static_cast<int>(buttons.size());
     const int rows = (count + COLUMNS - 1) / COLUMNS;
     const int grid_width = std::min(count, COLUMNS) * cell.width();
@@ -169,13 +175,16 @@ void ToolbarMorePopup::leaveEvent(QEvent *event) {
 }
 
 Toolbar::Toolbar(QWidget *parent, const toolbar_layout::LayoutProfile &layout_profile)
-    : QWidget(parent), layout_profile(layout_profile) { init_ui(); }
+    : QWidget(parent), layout_profile(layout_profile) {
+    init_ui();
+    connect(get_ui_theme(), &UIThemeManager::theme_changed, this, [this] { apply_scale(); update(); });
+}
 
 void Toolbar::init_ui() {
     // Buttons are only created here; arrange places them per layout, shared by the
     // capture (user layout) and pin windows (fixed list).
     make_floating(this);
-    setAttribute(Qt::WA_TranslucentBackground, true);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
     drag_handle = new ToolbarDragHandle(this);
     drag_handle->setToolTip(toolbar_tr("Drag to move"));
     // Events pass through; the toolbar handles dragging.
@@ -221,7 +230,7 @@ void Toolbar::init_ui() {
     buttons_["more"] = more_btn;
     button_order_.append("more");
     // Same width as the drag handle; the icon is the painted dots.
-    base_widths_["more"] = BASE_BTN_HEIGHT * HANDLE_WIDTH_RATIO;
+    base_widths_["more"] = HANDLE_HIT_WIDTH;
 
     // Background and border are painted; #toolbar_root stays transparent. The object
     // name must be set before the stylesheet or the selector misses.
@@ -245,6 +254,7 @@ void Toolbar::init_ui() {
 QPushButton *Toolbar::add_button(const QString &key, const QString &icon, const char *tooltip, int width, std::function<void()> on_click, bool checkable) {
     // Size and icon come from apply_button_sizes; position from arrange.
     auto *button = new QPushButton(this);
+    button->setProperty("_materialCompact",true);
     button->setToolTip(toolbar_tr(tooltip));
     button->setCheckable(checkable);
     // No keyboard focus, so Space/Enter cannot trigger buttons by accident.
@@ -262,10 +272,10 @@ QPushButton *Toolbar::add_button(const QString &key, const QString &icon, const 
 
 void Toolbar::apply_button_sizes() {
     // Insets and radii in the button style scale too, so the whole sheet is reapplied.
-    setStyleSheet("#toolbar_root { background-color: transparent; border: none; }" + button_qss());
+    apply_style_sheet(this, "#toolbar_root { background-color: transparent; border: none; }" + button_qss());
     btn_height_ = scaled(BASE_BTN_HEIGHT);
-    const int handle_w = scaled(BASE_BTN_HEIGHT * HANDLE_WIDTH_RATIO);
-    drag_handle->setGeometry(0, 0, handle_w, btn_height_);
+    const int handle_w = scaled(HANDLE_HIT_WIDTH);
+    drag_handle->setGeometry(scaled(HANDLE_EDGE_INSET), 0, handle_w, btn_height_);
     for (const auto &key : button_order_) button_widths_[key] = scaled(base_widths_.value(key));
     const int icon_size = scaled(BASE_ICON);
     for (auto it = icon_paths_.begin(); it != icon_paths_.end(); ++it) {
@@ -307,13 +317,14 @@ void Toolbar::make_floating(QWidget *widget) const {
         widget->setWindowFlags(Qt::FramelessWindowHint);
     }
     widget->setFocusPolicy(Qt::NoFocus);
-    widget->setAttribute(Qt::WA_StyledBackground, true);
+    widget->setAttribute(Qt::WA_TranslucentBackground, widget->isWindow());
+    widget->setAttribute(Qt::WA_StyledBackground, false);
 }
 
 void Toolbar::arrange(const QStringList &keys) {
     for (const auto &key : button_order_)
         if (!keys.contains(key)) buttons_[key]->hide();
-    int x = drag_handle->width();
+    int x = drag_handle->geometry().right()+1;
     for (const auto &key : keys) {
         // A subclass's own keys have no button yet while the base constructor arranges.
         auto *button = buttons_.value(key);
@@ -321,11 +332,12 @@ void Toolbar::arrange(const QStringList &keys) {
         // Just moved back from the "..." popup.
         if (button->parent() != this) button->setParent(this);
         const int width = button_widths_[key];
-        button->setGeometry(x, 0, width, btn_height_);
+        const int inset=scaled(5);
+        button->setGeometry(x,inset,width,btn_height_-2*inset);
         button->show();
         x += width;
     }
-    resize(x, btn_height_);
+    resize(x+scaled(HANDLE_EDGE_INSET), btn_height_);
 }
 
 void Toolbar::reload_layout() {

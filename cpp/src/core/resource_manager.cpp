@@ -1,5 +1,6 @@
 #include "core/resource_manager.h"
 #include "core/logger.h"
+#include "core/ui_theme.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -62,6 +63,22 @@ QIcon ResourceManager::rasterize(const QString &svg_path, int size, int fit) {
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
         renderer->render(&painter);
         painter.end();
+        if (get_ui_theme()->is_dark()) {
+            const QImage image=pixmap.toImage();
+            bool monochrome=true, ink=false;
+            for(int y=0;y<image.height() && monochrome;++y) for(int x=0;x<image.width();++x) {
+                const auto color=image.pixelColor(x,y);
+                if(color.alpha()<24) continue;
+                const int low=std::min({color.red(),color.green(),color.blue()}), high=std::max({color.red(),color.green(),color.blue()});
+                if(high-low>18 || high>185) { monochrome=false; break; }
+                ink=true;
+            }
+            if(monochrome && ink) {
+                QPainter tint(&pixmap);
+                tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+                tint.fillRect(pixmap.rect(),QColor(get_ui_theme()->tokens().text));
+            }
+        }
         return pixmap;
     };
     QIcon icon;
@@ -88,7 +105,7 @@ QIcon ResourceManager::rasterize(const QString &svg_path, int size, int fit) {
 
 QIcon ResourceManager::get_icon(const QString &svg_path, int size, int fit) {
     if (size > 0 || std::find(std::begin(RASTER_BOX_SIZES), std::end(RASTER_BOX_SIZES), fit) != std::end(RASTER_BOX_SIZES)) fit = 0;
-    const auto cache_key = QString("%1|%2|%3").arg(svg_path).arg(size).arg(fit);
+    const auto cache_key = QString("%1|%2|%3|%4").arg(svg_path).arg(size).arg(fit).arg(get_ui_theme()->is_dark());
     if (const auto found = icon_cache().constFind(cache_key); found != icon_cache().constEnd()) return *found;
     const auto icon = rasterize(svg_path, size, fit);
     if (icon.isNull()) {

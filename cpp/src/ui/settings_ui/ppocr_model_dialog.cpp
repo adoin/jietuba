@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/settings_ui/ppocr_model_dialog.h"
 #include "core/background_tasks.h"
 #include "core/i18n.h"
@@ -102,7 +103,7 @@ PpocrModelDialog::PpocrModelDialog(QWidget *parent, ModelDownloads *downloads) :
     scale_dialog_font(*this);
     setWindowTitle(tr_text("Manage PP-OCR Models"));
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
-    setStyleSheet(QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
+    apply_style_sheet(this, QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
 
     connect(this, &PpocrModelDialog::import_done, this, &PpocrModelDialog::on_imported, Qt::QueuedConnection);
 
@@ -367,7 +368,7 @@ PpocrImportForm::PpocrImportForm(QWidget *parent) : QDialog(parent) {
     scale_dialog_font(*this);
     setWindowTitle(tr_text("Add Local Model"));
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
-    setStyleSheet(QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
+    apply_style_sheet(this, QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
     name_ = new LineEdit(this);
     det_ = new LineEdit(this);
     rec_ = new LineEdit(this);

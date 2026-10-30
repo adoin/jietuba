@@ -155,7 +155,7 @@ TextRecognitionWindow::TextRecognitionWindow(const QImage &image, QWidget *paren
 
 void TextRecognitionWindow::apply_theme() {
     const auto &t = ui_tokens(this);
-    text_edit->setStyleSheet(QString("QTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: %4px %5px; "
+    apply_style_sheet(text_edit, QString("QTextEdit { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: %4px %5px; "
                                      "font: %6px %7; selection-background-color: %8; selection-color: %9; }")
                                  .arg(t.input_background, t.text, t.border)
                                  .arg(dialog_scaled(8))

@@ -68,7 +68,7 @@ ToolbarLayoutDialog::ToolbarLayoutDialog(const QJsonArray &layout, const QMap<QS
     setWindowTitle(tld_tr("Customize Toolbar"));
     // Opened from the full-screen topmost capture window, so it stays on top too.
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint);
-    setStyleSheet(QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
+    apply_style_sheet(this, QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
     list_ = new ReorderableRowList(this);
     // Locked buttons get no disabled row; only adjustable buttons have one.
     for (const auto &key : profile.order)

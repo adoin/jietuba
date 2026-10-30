@@ -1,4 +1,6 @@
 #include "core/theme.h"
+#include "core/ui_theme.h"
+#include <QApplication>
 #include "settings/tool_settings.h"
 #include <algorithm>
 #include <cmath>
@@ -21,6 +23,7 @@ ThemeManager &ThemeManager::instance() {
 void ThemeManager::init(ToolSettingsManager *config_manager) {
     config_manager_ = config_manager;
     load_from_settings();
+    if (qobject_cast<QApplication *>(QCoreApplication::instance())) get_ui_theme()->apply(true);
 }
 
 void ThemeManager::load_from_settings() {
@@ -59,8 +62,10 @@ int ThemeManager::selection_handle_diameter() const { return handle_size_entry(s
 int ThemeManager::selection_handle_ring_width() const { return handle_size_entry(selection_handle_size_).second; }
 
 void ThemeManager::set_theme_color(const QColor &color) {
+    if (!color.isValid()) return;
     theme_color_ = color;
     if (config_manager_) config_manager_->set_theme_color(color.name());
+    if (qobject_cast<QApplication *>(QCoreApplication::instance())) get_ui_theme()->apply(true);
 }
 
 void ThemeManager::set_mask_color(const QColor &color) {

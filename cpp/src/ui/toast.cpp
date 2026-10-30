@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/toast.h"
 #include "core/ui_scale.h"
 #include "ui/fluent_lite/theme.h"
@@ -20,7 +21,7 @@ Toast::Toast(const QString &text) : QWidget(nullptr) {
     const auto &t = ui_tokens();
     label = new QLabel(this);
     label->setTextFormat(Qt::PlainText);
-    label->setStyleSheet(QString("QLabel { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: %5px %6px; font: %7px %8; }")
+    apply_style_sheet(label, QString("QLabel { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; padding: %5px %6px; font: %7px %8; }")
                              .arg(t.popup_background, t.text, t.window_border)
                              .arg(dialog_scaled(8))
                              .arg(dialog_scaled(6))

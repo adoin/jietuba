@@ -24,6 +24,8 @@
 #include <QDesktopServices>
 #include <QDrag>
 #include <QFile>
+#include <QFontDatabase>
+#include <QPainter>
 #include <QKeyEvent>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -39,6 +41,7 @@
 #include <QWheelEvent>
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <memory>
 
 using namespace clipboard_test;
@@ -975,11 +978,6 @@ private slots:
         QCOMPARE(env_.config->get_clipboard_image_size(), QString("large"));
         QVERIFY(!window->grab().isNull());
 
-        for (const char *position : {"Left", "Top", "Right"}) {
-            QVERIFY(pick(position));
-            QVERIFY(!window->grab().isNull());
-        }
-        QCOMPARE(env_.config->get_clipboard_group_bar_position(), QString("right"));
 
         QVERIFY(pick("Add Content"));
         QVERIFY(get_existing_manage_dialog());
@@ -1056,8 +1054,7 @@ private slots:
         // Wherever the bar is, left and right in the list step through the groups in the bar's order and wrap around;
         // up and down stay with the list.
         const auto group = [window] { return window->controller->current_group_id; };
-        for (const char *position : {"Left", "Top", "Right"}) {
-            QVERIFY(gear_pick(position));
+        {
             QTRY_COMPARE(window->group_bar->group_buttons.size(), 2);
             window->group_bar->switch_to_group(std::nullopt);
             QTest::keyClick(window->list_widget, Qt::Key_Right);
@@ -1112,32 +1109,24 @@ private slots:
         // The add and close buttons.
         window->group_bar->add_group_btn->click();
         QVERIFY(get_existing_manage_dialog()->isVisible());
-        window->group_bar->close_btn->click();
+        window->close();
         QVERIFY(!window->isVisible());
     }
 
-    void groupsThatDoNotFitGoIntoAMenu() {
-        QList<qint64> groups;
-        for (int i = 0; i < 20; ++i) groups << manager().create_group(QString("G%1").arg(i)).value_or(-1);
-        QString last_label;
-        for (const auto &group : manager().get_groups())
-            if (group.id == groups.last()) last_label = (group.icon && !group.icon->isEmpty() ? *group.icon : QString::fromUtf8("📁")) + "  " + group.name;
+    void groupsThatDoNotFitScrollWithTheTypeTabs() {
+        for (int i = 0; i < 20; ++i) QVERIFY(manager().create_group(QString("Group %1").arg(i)));
         auto *window = open_window();
-        auto overflow_button = [window]() -> QPushButton * {
-            for (auto *button : window->group_bar->findChildren<QPushButton *>())
-                if (button->text() == QString::fromUtf8("···") && button->isVisible()) return button;
-            return nullptr;
-        };
-        QTRY_VERIFY(overflow_button());
-        QVERIFY(window->group_bar->group_buttons.size() < 20);
-        MenuPicker picker(last_label);
-        overflow_button()->click();
-        QVERIFY(picker.picked);
-        QCOMPARE(window->controller->current_group_id, std::optional<qint64>(groups.last()));
-        // The chosen group takes the last visible place at once.
-        QVERIFY(std::any_of(window->group_bar->group_buttons.begin(), window->group_bar->group_buttons.end(),
-                                [&groups](QPushButton *button) { return button->isChecked() && button->property("group_id").toLongLong() == groups.last(); }));
-        QVERIFY(!window->grab().isNull());
+        QTRY_COMPARE(window->group_bar->group_buttons.size(), 20);
+        auto *scroll = window->findChild<QScrollArea *>("typeFilterScroll");
+        QVERIFY(scroll);
+        QTRY_VERIFY(scroll->horizontalScrollBar()->maximum() > 0);
+        const QPoint before = window->group_bar->add_group_btn->mapTo(window, QPoint());
+        scroll->horizontalScrollBar()->setValue(scroll->horizontalScrollBar()->maximum());
+        QCOMPARE(window->group_bar->add_group_btn->mapTo(window, QPoint()), before);
+        QVERIFY(window->group_bar->add_group_btn->isVisible());
+        QCOMPARE(window->group_bar->group_buttons.last()->text(), QString("Group 19"));
+        window->group_bar->group_buttons.last()->click();
+        QCOMPARE(window->controller->current_group_id, std::optional<qint64>(window->group_bar->group_buttons.last()->property("group_id").toLongLong()));
     }
 
     void losingFocusHidesOnlyWhenClosingAfterPaste() {
@@ -1275,23 +1264,38 @@ private slots:
         QCOMPARE(urls_.urls.size(), 4);
     }
 
-    void aFilterGroupFixesTheTypeButton() {
-        add_texts({"apple", "banana"});
-        QVERIFY(manager().add_item(file_payload({"C:\\f.txt"}), "file"));
-        QVERIFY(manager().create_group("Text", std::nullopt, std::nullopt, static_cast<int>(GroupType::FILTER), FilterRule::of_kind("text")));
+    void imageGroupsDoNotReuseTheImageTypeName() {
+        const QString label = ClipboardWindow::tr_text("Image");
+        QVERIFY(manager().create_group(label, std::nullopt, std::nullopt, static_cast<int>(GroupType::FILTER), FilterRule::of_kind("image")));
+        const auto custom = manager().create_group("Screenshots", std::nullopt, std::nullopt, static_cast<int>(GroupType::FILTER), FilterRule::of_kind("image"));
+        QVERIFY(custom);
         auto *window = open_window();
-        QTRY_VERIFY(!window->group_bar->group_buttons.isEmpty());
-        QVERIFY(window->type_filter_tabs[0]->isEnabled());
+        QTRY_COMPARE(window->group_bar->group_buttons.size(), 2);
+        QCOMPARE(window->group_bar->group_buttons.first()->text(), label + "1");
+        QCOMPARE(window->group_bar->group_buttons.last()->text(), QString("Screenshots"));
+        QVERIFY(window->type_filter_tabs[5]->isVisible());
+        QCOMPARE(manager().get_groups().size(), 2);
+    }
+
+    void groupsAndTypesAreIndependentTabs() {
+        add_texts({"apple", "banana"});
+        QVERIFY(manager().add_item(file_payload({"C:\f.txt"}), "file"));
+        const auto group = manager().create_group("Text group", std::nullopt, std::nullopt, static_cast<int>(GroupType::FILTER), FilterRule::of_kind("text"));
+        QVERIFY(group);
+        auto *window = open_window();
+        QTRY_COMPARE(window->group_bar->group_buttons.size(), 1);
+        QCOMPARE(window->group_bar->group_buttons.first()->text(), QString("Text group"));
         window->group_bar->group_buttons.first()->click();
+        QCOMPARE(window->controller->current_group_id, group);
         QCOMPARE(window->list_widget->count(), 2);
-        QVERIFY(!window->type_filter_tabs[0]->isEnabled());
-        QVERIFY(window->type_filter_tabs[1]->isChecked());
-        // Back in the history the button is the user's again.
-        window->group_bar->clipboard_btn->click();
+        for (auto *tab : window->type_filter_tabs) { QVERIFY(tab->isEnabled()); QVERIFY(!tab->isChecked()); }
+        window->type_filter_tabs[6]->click();
+        QVERIFY(!window->controller->current_group_id);
+        QCOMPARE(window->list_widget->count(), 1);
+        QVERIFY(window->type_filter_tabs[6]->isChecked());
+        QVERIFY(!window->group_bar->group_buttons.first()->isChecked());
+        window->type_filter_tabs[0]->click();
         QCOMPARE(window->list_widget->count(), 3);
-        QVERIFY(window->type_filter_tabs[0]->isEnabled());
-        QVERIFY(window->type_filter_tabs[0]->isChecked());
-        QVERIFY(!window->grab().isNull());
     }
 
     void themeScaleAndLanguageChangesRestyle() {
@@ -1359,32 +1363,46 @@ private slots:
         QCOMPARE(icon_color(exit_button->icon()), QColor("#FFFFFF"));
     }
 
-    void theDividersAroundTheListStandOutOnEveryTheme() {
-        add_texts({"a"});
+    void theMaterialUsesOneBaseAndWholeWindowOpacity() {
         env_.config->set_clipboard_window_opacity(0);
+        add_texts({"one", "two"});
+        auto *window = open_window();
+        QCOMPARE(window->windowOpacity(), 1.0);
+        auto *well = window->findChild<QFrame *>("clipboardListSurface");
+        QVERIFY(well);
+        const auto image = window->grab().toImage();
+        const qreal ratio = image.devicePixelRatio();
+        const auto pixel = [&](QPoint point) { return image.pixelColor(point * ratio); };
+        const QRect body = window->container->geometry();
+        const QColor base = pixel(QPoint(body.center().x(), body.bottom() - 4));
+        QCOMPARE(base.alpha(), 255);
+        QCOMPARE(pixel(well->mapTo(window, QPoint(well->width()/2, well->height()-20))), base);
+        const QColor shadow = pixel(QPoint(body.center().x(), body.bottom() + 8));
+        QVERIFY(shadow.alpha() > 0 && shadow.alpha() < 255);
+        QVERIFY(window->list_widget->styleSheet().contains("background: transparent"));
+        QVERIFY(gear_pick("40%"));
+        QVERIFY(std::abs(window->windowOpacity() - 0.6) < 0.01);
+        QVERIFY(gear_pick("Opaque"));
+        QCOMPARE(window->windowOpacity(), 1.0);
+    }
+
+    void thePanelCornersStayTransparentOnEveryTheme() {
+        add_texts({"one", "two"});
+        auto *window = open_window();
         auto *themes = get_theme_manager();
         const QString original = themes->get_current_theme().name;
         const auto restore = qScopeGuard([themes, original] { themes->set_theme(original); });
-        for (const char *position : {"top", "right"}) {
-            env_.config->set_clipboard_group_bar_position(position);
-            auto *window = open_window();
-            for (const auto &[name, theme] : PRESET_THEMES()) {
-                QVERIFY(themes->set_theme(name));
-                const QImage image = window->grab().toImage();
-                const auto at = [&](QWidget *widget, const QPoint &point) { return image.pixelColor(widget->mapTo(window, point)); };
-                const QColor bottom_line = at(window->bottom_bar, QPoint(window->bottom_bar->width() / 2, 0));
-                const QColor list = at(window->bottom_bar, QPoint(window->bottom_bar->width() / 2, -6));
-                const QColor group_line = QString(position) == "top" ? at(window->group_bar, QPoint(window->group_bar->width() / 2, window->group_bar->height() - 1))
-                                                                     : at(window->group_bar, QPoint(0, window->group_bar->height() / 2));
-                QCOMPARE(list, QColor(theme.colors.bg_primary));
-                // Clear on dark themes as on light ones, where the border colors fade into the ground.
-                QVERIFY2(color_distance(bottom_line, list) >= 30, qPrintable(name));
-                // Drawn once: the bar's children do not lay the same translucent line over it again.
-                QCOMPARE(group_line, bottom_line);
-            }
-            window_->close();
-            window_.reset();
+        for (const auto &[name, swatch] : PRESET_THEME_SWATCHES()) {
+            QVERIFY(themes->set_theme(name));
+            const auto image = window->grab().toImage();
+            for (const QPoint corner : {QPoint(0, 0), QPoint(image.width()-1, 0), QPoint(0, image.height()-1), QPoint(image.width()-1, image.height()-1)})
+                QVERIFY2(image.pixelColor(corner).alpha() < 10, qPrintable(name));
         }
+        const QPoint header = window->bottom_bar->mapTo(window, QPoint());
+        const QPoint tabs = window->type_filter_bar->mapTo(window, QPoint());
+        const QPoint list = window->list_widget->mapTo(window, QPoint());
+        QVERIFY(header.y() < tabs.y());
+        QVERIFY(tabs.y() < list.y());
     }
 
     void theFilterFunnelIsSelectedWhileTheFiltersAreOpen() {
@@ -1462,103 +1480,45 @@ private slots:
         QTRY_VERIFY(!scrollbar->isVisible());
     }
 
-    void theGroupBarMarksTheCurrentGroupAlongItsOuterEdge_data() {
+    void groupTabsHighlightTheSelection_data() {
         QTest::addColumn<int>("scale");
         QTest::newRow("100-percent") << 100;
         QTest::newRow("150-percent") << 150;
     }
 
-    void theGroupBarMarksTheCurrentGroupAlongItsOuterEdge() {
+    void groupTabsHighlightTheSelection() {
         QFETCH(int, scale);
-        const auto restore_scale = qScopeGuard([] { get_ui_scale().set_percent(100); });
+        const auto restore = qScopeGuard([] { get_ui_scale().set_percent(100); });
         get_ui_scale().set_percent(scale);
-        const auto work = manager().create_group("Work", std::nullopt, QString::fromUtf8("💼"));
-        QVERIFY(work);
-        const struct {
-            const char *position;
-            Qt::Edge edge;
-        } cases[] = {{"top", Qt::BottomEdge}, {"left", Qt::LeftEdge}, {"right", Qt::RightEdge}};
-        auto *themes = get_theme_manager();
-        const QString original = themes->get_current_theme().name;
-        const auto restore = qScopeGuard([themes, original] { themes->set_theme(original); });
-        QVERIFY(themes->set_theme("light"));
-        for (const auto &position_case : cases) {
-            const char *position = position_case.position;
-            const Qt::Edge edge = position_case.edge;
-            env_.config->set_clipboard_group_bar_position(position);
-            auto *window = open_window();
-            auto *bar = window->group_bar;
-            QTRY_COMPARE(bar->group_buttons.size(), 1);
-            const QColor accent(window->current_theme.colors.accent_primary);
-            // Measure the solid accent from the edge toward the button's center.
-            const auto mark_thickness = [&](QPushButton *button) {
-                const QImage image = button->grab().toImage();
-                const QColor current_accent(window->current_theme.colors.accent_primary);
-                const int depth = edge == Qt::BottomEdge ? image.height() : image.width();
-                int thickness = 0;
-                for (; thickness < depth; ++thickness) {
-                    const QPoint at = edge == Qt::BottomEdge ? QPoint(image.width() / 2, image.height() - 1 - thickness)
-                                      : edge == Qt::LeftEdge ? QPoint(thickness, image.height() / 2)
-                                                             : QPoint(image.width() - 1 - thickness, image.height() / 2);
-                    if (image.pixelColor(at) != current_accent) break;
-                }
-                return thickness;
-            };
-            const int expected_thickness = qRound(scaled(4) * bar->clipboard_btn->devicePixelRatioF());
-            QVERIFY2(bar->clipboard_btn->indicator_edge() == edge, position);
-            QVERIFY2(bar->group_buttons.first()->indicator_edge() == edge, position);
-            // The records button is current to begin with; switching moves the line.
-            QCOMPARE(mark_thickness(bar->clipboard_btn), expected_thickness);
-            QCOMPARE(mark_thickness(bar->group_buttons.first()), 0);
-            bar->group_buttons.first()->click();
-            QCOMPARE(mark_thickness(bar->clipboard_btn), 0);
-            QCOMPARE(mark_thickness(bar->group_buttons.first()), expected_thickness);
-            // The line follows a theme change.
-            QVERIFY(themes->set_theme("dark"));
-            const QColor dark_accent(window->current_theme.colors.accent_primary);
-            QVERIFY2(dark_accent != accent, position);
-            QCOMPARE(mark_thickness(bar->group_buttons.first()), expected_thickness);
-            QVERIFY(themes->set_theme("light"));
-            window_->close();
-            window_.reset();
-        }
+        const auto group = manager().create_group("Work");
+        QVERIFY(group);
+        auto *window = open_window();
+        QTRY_COMPARE(window->group_bar->group_buttons.size(), 1);
+        auto *button = window->group_bar->group_buttons.first();
+        QCOMPARE(button->text(), QString("Work"));
+        QVERIFY(!button->indicator_edge());
+        button->click();
+        QVERIFY(button->isChecked());
+        QCOMPARE(button->height(), scaled(30));
+        QVERIFY(!window->type_filter_tabs[0]->isChecked());
     }
 
-    void theGroupBarShowsEmojiAndLineIcons() {
-        const auto work = manager().create_group("Work", std::nullopt, QString::fromUtf8("💼"));
-        QVERIFY(work);
+    void groupingActionStaysFixedAndOldIconsAreHidden() {
+        QVERIFY(manager().create_group("Work", std::nullopt, QString::fromUtf8("💼")));
         auto *window = open_window();
         auto *bar = window->group_bar;
-        auto *themes = get_theme_manager();
-        const QString original = themes->get_current_theme().name;
-        const auto restore = qScopeGuard([themes, original] {
-            themes->set_theme(original);
-            get_ui_scale().set_percent(100);
-        });
         QTRY_COMPARE(bar->group_buttons.size(), 1);
-        // The groups keep the emoji the user chose and are named by their tooltips.
-        QCOMPARE(bar->clipboard_btn->text(), QString::fromUtf8("📋"));
-        QCOMPARE(bar->group_buttons.first()->text(), QString::fromUtf8("💼"));
-        QCOMPARE(bar->group_buttons.first()->toolTip(), QString("Work"));
-        // Close and add are line icons with no symbol characters: close in the secondary text color, add in the accent.
-        for (const char *name : {"light", "dark"}) {
-            QVERIFY(themes->set_theme(name));
-            for (QPushButton *button : {bar->close_btn, bar->add_group_btn}) {
-                QVERIFY(button->text().isEmpty());
-                QVERIFY(!button->icon().isNull());
-            }
-            QCOMPARE(icon_color(bar->close_btn->icon()), QColor(preset_theme(name)->colors.text_secondary));
-            QCOMPARE(icon_color(bar->add_group_btn->icon()), QColor(preset_theme(name)->colors.accent_primary));
-        }
+        QVERIFY(!bar->clipboard_btn->isVisible());
+        QVERIFY(!bar->close_btn->isVisible());
+        QCOMPARE(bar->group_buttons.first()->text(), QString("Work"));
+        QVERIFY(bar->add_group_btn->isVisible());
+        QVERIFY(!bar->add_group_btn->icon().isNull());
         QCOMPARE(bar->add_group_btn->toolTip(), QString("New Group"));
-        // Side bar buttons are taller than wide, and follow the panel scale.
-        QCOMPARE(bar->clipboard_btn->size(), QSize(41, 34));
-        QCOMPARE(bar->add_group_btn->size(), QSize(41, 34));
+        QCOMPARE(bar->add_group_btn->size(), QSize(32, 32));
+        const auto restore = qScopeGuard([] { get_ui_scale().set_percent(100); });
         get_ui_scale().set_percent(150);
-        QTRY_COMPARE(bar->clipboard_btn->size(), QSize(62, 51));
-        QCOMPARE(bar->close_btn->iconSize(), QSize(21, 21));
-        QCOMPARE(bar->add_group_btn->iconSize(), QSize(27, 27));
-        QTRY_COMPARE(bar->group_buttons.first()->size(), QSize(62, 51));
+        QTRY_COMPARE(bar->add_group_btn->size(), QSize(48, 48));
+        QCOMPARE(bar->group_buttons.first()->height(), 45);
     }
 
     void theSearchBoxHoldsItsOwnMagnifierAndTheBarFollowsTheScale() {
@@ -1575,10 +1535,10 @@ private slots:
         // The box, the funnel and the gear are on the bottom bar in that order.
         QVERIFY(window->search_box->geometry().right() < window->time_filter_toggle_btn->geometry().left());
         QVERIFY(window->time_filter_toggle_btn->geometry().right() < window->menu_btn->geometry().left());
-        // The box takes a fainter ground while empty, a plain one once it has text.
+        // Text does not introduce another shade of white into the material.
         const QString empty_style = window->search_box->styleSheet();
         window->search_input->setText("a");
-        QVERIFY(window->search_box->styleSheet() != empty_style);
+        QCOMPARE(window->search_box->styleSheet(), empty_style);
         QVERIFY(window->clear_search_btn->isVisible());
 
         QCOMPARE(window->bottom_bar->height(), 46);
@@ -1796,7 +1756,10 @@ private slots:
         const QString dir = qEnvironmentVariable("JIETUBA_VISUAL_DIR");
         if (dir.isEmpty()) QSKIP("No visual output directory supplied");
         const QString language = I18nManager::get_current_language();
-        const auto restore = qScopeGuard([language] { I18nManager::load_language(language); });
+        const QFont previous_font = QApplication::font();
+        const auto restore = qScopeGuard([language, previous_font] { I18nManager::load_language(language); QApplication::setFont(previous_font); });
+        const int font = QFontDatabase::addApplicationFont("C:/Windows/Fonts/msyh.ttc");
+        if (font >= 0 && !QFontDatabase::applicationFontFamilies(font).isEmpty()) QApplication::setFont(QFont(QFontDatabase::applicationFontFamilies(font).first()));
         I18nManager::load_language("zh");
         const auto id = add_texts({"Sample clipboard text", "https://example.com", "#41bfb0"}).first();
         QVERIFY(manager().add_item(R"({"formats":["application/example"],"digest":"test"})", "custom"));
@@ -1808,6 +1771,12 @@ private slots:
         window->resize(460, 600);
         QTest::qWait(200);
         QVERIFY(window->grab().save(QDir(dir).filePath("clipboard.png")));
+        const auto surface = window->grab();
+        QImage presentation(surface.size(), QImage::Format_ARGB32_Premultiplied);
+        presentation.setDevicePixelRatio(surface.devicePixelRatio());
+        presentation.fill(QColor("#DDE1E7"));
+        { QPainter painter(&presentation); painter.drawPixmap(QPoint(), surface); }
+        QVERIFY(presentation.save(QDir(dir).filePath("clipboard-material.png")));
         window->type_filter_tabs[7]->click();
         QCOMPARE(window->list_widget->count(), 1);
         window->type_filter_tabs[0]->click();

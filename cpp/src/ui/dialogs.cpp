@@ -1,3 +1,4 @@
+#include "ui/fluent_lite/fluent_lite.h"
 #include "ui/dialogs.h"
 #include "core/i18n.h"
 #include "core/resource_manager.h"
@@ -71,7 +72,7 @@ StandardDialog::StandardDialog(QWidget *parent, const QString &title, const QStr
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
     setWindowModality(Qt::WindowModal);
     if (windowIcon().isNull()) setWindowIcon(QIcon(QStringLiteral(":/app.ico")));
-    setStyleSheet(R"(
+    apply_style_sheet(this, R"(
             QDialog#standardDialog {
                 background: #FFFFFF;
                 color: #202124;
@@ -150,7 +151,7 @@ bool show_confirm_dialog(QWidget *parent, const QString &title, const QString &m
 
 std::pair<bool, bool> show_confirm_checkbox_dialog(QWidget *parent, const QString &title, const QString &message, const QString &checkbox_text, bool checkbox_checked) {
     StandardDialog dialog(parent, title, message);
-    auto *checkbox = new QCheckBox(checkbox_text, &dialog);
+    auto *checkbox = new CheckBox(checkbox_text, &dialog);
     checkbox->setChecked(checkbox_checked);
     auto *layout = static_cast<QVBoxLayout *>(dialog.layout());
     layout->insertWidget(layout->count() - 1, checkbox);
@@ -177,7 +178,7 @@ QScrollArea *make_scroll(QDialog *dialog) {
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QScrollArea::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }");
     return scroll;
 }
 }

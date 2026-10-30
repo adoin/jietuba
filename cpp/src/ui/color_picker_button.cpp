@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/color_picker_button.h"
 #include "core/theme.h"
 #include "ui/base_settings_panel.h"
@@ -20,13 +21,15 @@ QConicalGradient rainbow(const QPointF &center) {
 
 ColorPickerButton::ColorPickerButton(const QColor &initial_color, bool show_alpha, int size, bool rainbow_ring, bool round_style, QWidget *parent)
     : QPushButton(parent), color_(initial_color), show_alpha_(show_alpha), rainbow_ring_(rainbow_ring || round_style), round_style_(round_style) {
+    setProperty("_materialNative",true);
+    setProperty("_materialPreserveColor",true);
     setFixedSize(size, size);
     if (rainbow_ring_) {
         setFlat(true);
         setAttribute(Qt::WA_Hover, true);
         setAttribute(Qt::WA_TranslucentBackground, true);
         setCursor(Qt::PointingHandCursor);
-        setStyleSheet("QPushButton { border: none; background: transparent; }");
+        apply_style_sheet(this, "QPushButton { border: none; background: transparent; }");
     } else {
         update_style();
     }
@@ -156,7 +159,7 @@ void ColorPickerButton::paint_round(QPainter *painter) {
 void ColorPickerButton::update_style() {
     const auto color_hex = color_.name();
     const auto border_color = color_.lightness() > 200 ? QString("#888888") : QString("#333333");
-    setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString(R"(
             QPushButton {
                 background-color: %1;
                 border: 2px solid %2;

@@ -1,3 +1,4 @@
+#include "ui/fluent_lite/fluent_lite.h"
 #include "ui/selection_info/border_shadow.h"
 #include "canvas/selection_model.h"
 #include "core/export.h"
@@ -83,7 +84,7 @@ void BorderShadowPopup::init_ui() {
     slider_row_->addWidget(label_val_);
     root_layout_->addLayout(slider_row_);
     // Third row: keep enabled across captures.
-    chk_persist_ = new QCheckBox(popup_tr("Keep enabled for every screenshot"));
+    chk_persist_ = new CheckBox(popup_tr("Keep enabled for every screenshot"));
     chk_persist_->setFocusPolicy(Qt::NoFocus);
     root_layout_->addWidget(chk_persist_);
     apply_scale();
@@ -124,7 +125,7 @@ void BorderShadowPopup::apply_scale() {
     const int block = scaled(BASE_COLOR_BLOCK);
     for (auto *color_block : {shadow_color_block_, border_color_block_}) color_block->setFixedSize(block, block);
     set_own_style(size_label_, QString("color: #AAAAAA; font-size: %1px; background: transparent;").arg(scaled(12)));
-    slider_->setStyleSheet(QString(R"(
+    apply_style_sheet(slider_, QString(R"(
             QSlider::groove:horizontal {
                 height: %1px; background: #555; border-radius: %2px;
             }
@@ -139,7 +140,7 @@ void BorderShadowPopup::apply_scale() {
     label_val_->setFixedWidth(scaled(BASE_VALUE_LABEL_WIDTH));
     set_own_style(label_val_, QString("color: #D0D0D0; font-size: %1px; background: transparent;").arg(scaled(12)));
     const int indicator = scaled(14);
-    chk_persist_->setStyleSheet(QString(R"(
+    apply_style_sheet(chk_persist_, QString(R"(
             QCheckBox { color: #AAAAAA; font-size: %1px;
                          background: transparent; spacing: %2px; }
             QCheckBox::indicator { width: %3px; height: %3px;
@@ -170,10 +171,10 @@ void BorderShadowPopup::refresh_mode_buttons() {
     const std::tuple<QWidget *, QLabel *, QString> groups[] = {{shadow_group_, shadow_label_, "shadow"}, {border_group_, border_label_, "border"}};
     for (const auto &[group, label, mode] : groups) {
         if (mode == current_mode_) {
-            group->setStyleSheet(active);
+            apply_style_sheet(group, active);
             set_own_style(label, QString("color: #FFFFFF; font-size: %1px; background: transparent;").arg(font_px));
         } else {
-            group->setStyleSheet(inactive);
+            apply_style_sheet(group, inactive);
             set_own_style(label, QString("color: #999999; font-size: %1px; background: transparent;").arg(font_px));
         }
     }

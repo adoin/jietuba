@@ -1,3 +1,4 @@
+#include "core/material_style.h"
 #include "ui/save_image_dialog.h"
 #include "core/i18n.h"
 #include "core/logger.h"
@@ -569,9 +570,7 @@ void SavePreviewView::paintEvent(QPaintEvent *) {
         if (loading_) draw_pill(painter, QPointF(width() - dialog_scaled(10), height() - dialog_scaled(30)), true, tr_text("Estimating..."));
     }
     painter.setClipping(false);
-    painter.setPen(QPen(css_color(t.border), 1));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawPath(frame);
+    paint_material_edges(painter,frame.boundingRect(),dialog_scaled(12),css_color(t.popup_background),MaterialDepth::Recessed);
 }
 
 void SavePreviewView::resizeEvent(QResizeEvent *event) {
@@ -1108,13 +1107,7 @@ void SaveImageDialog::accept_save() {
 }
 
 void SaveImageDialog::paintEvent(QPaintEvent *) {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    const auto &t = ui_tokens(this);
-    const auto rect = QRectF(this->rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    painter.setPen(QPen(css_color(t.window_border), 1));
-    painter.setBrush(css_color(t.popup_background));
-    painter.drawRoundedRect(rect, frosted_corner_radius_, frosted_corner_radius_);
+    paint_material_window(this, frosted_corner_radius_);
 }
 
 bool SaveImageDialog::eventFilter(QObject *watched, QEvent *event) {
@@ -1127,7 +1120,7 @@ void SaveImageDialog::apply_theme() {
     const auto &t = ui_tokens(this);
     const int radius = dialog_scaled(12);
     const QString fill = t.is_dark() ? "#1F2327" : "#F1F3F5";
-    panel_->setStyleSheet(QString(R"(
+    apply_style_sheet(panel_, QString(R"(
         QLabel#blockTitle { color: %1; font-size: %2px; background: transparent; }
         QLabel#hint { color: %1; font-size: %3px; background: transparent; }
         QLabel#warningHint { color: %4; font-size: %3px; background: transparent; }
@@ -1170,13 +1163,13 @@ void SaveImageDialog::apply_theme() {
                               .arg(-dialog_scaled(6))
                               .arg(dialog_scaled(8)));
     for (auto *label : {zoom_label, original_label})
-        label->setStyleSheet(QString("QLabel { color: %1; font-size: %2px; background: transparent; }").arg(t.text_muted).arg(dialog_scaled(12)));
+        apply_style_sheet(label, QString("QLabel { color: %1; font-size: %2px; background: transparent; }").arg(t.text_muted).arg(dialog_scaled(12)));
     for (auto *button : {save_button, change_button}) button->setFixedHeight(dialog_scaled(34));
     lock_button->setIcon(lock_icon(lock_button->isChecked() ? css_color(t.accent) : css_color(t.text_muted), lock_button->isChecked()));
     reset_size_button->setIcon(tinted_icon(FluentIcon::Sync, t.text_muted));
     reset_size_button->setIconSize(QSize(dialog_scaled(16), dialog_scaled(16)));
     classic_link->setText(QString("<a href=\"classic\" style=\"color: %1; text-decoration: underline;\">%2</a>").arg(t.text_muted, tr_text("Use classic dialog")));
-    classic_link->setStyleSheet(QString("QLabel { font-size: %1px; background: transparent; }").arg(dialog_scaled(12)));
+    apply_style_sheet(classic_link, QString("QLabel { font-size: %1px; background: transparent; }").arg(dialog_scaled(12)));
     update();
 }
 

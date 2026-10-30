@@ -46,6 +46,7 @@ void FluentCaptionButton::paintEvent(QPaintEvent *) {
 }
 
 TitleBarPinButton::TitleBarPinButton(QWidget *parent) : QAbstractButton(parent) {
+    setProperty("_materialNative",true);
     setCheckable(true);
     setCursor(Qt::PointingHandCursor);
     icon_path = ResourceManager::get_icon_path(QString::fromUtf8("钉图.svg"));

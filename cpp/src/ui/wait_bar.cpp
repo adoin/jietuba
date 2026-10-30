@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/wait_bar.h"
 #include <algorithm>
 
@@ -14,7 +15,7 @@ WaitBar::WaitBar(QWidget *parent, const QSize &size) : QProgressBar(parent) {
     setRange(0, 100);
     setTextVisible(false);
     // Round at both ends whatever the height.
-    setStyleSheet(QString("QProgressBar { background: rgba(0, 0, 0, 45); border-radius: %1px; border: none; }"
+    apply_style_sheet(this, QString("QProgressBar { background: rgba(0, 0, 0, 45); border-radius: %1px; border: none; }"
                           "QProgressBar::chunk { background: #2196F3; border-radius: %1px; }")
                       .arg(size.height() / 2));
     show_timer_.setSingleShot(true);

@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/paint_settings_panel.h"
 #include "canvas/items/stroke_item.h"
 #include "core/resource_manager.h"
@@ -62,12 +63,12 @@ void PaintSettingsPanel::init_ui() {
     freehand_btn->setCheckable(true);
     freehand_btn->setToolTip(tr_panel("Freehand Highlight"));
     freehand_btn->setIcon(cached_icon(QString::fromUtf8("画笔.svg")));
-    freehand_btn->setStyleSheet("QPushButton { padding: 0px; }");
+    apply_style_sheet(freehand_btn, "QPushButton { padding: 0px; }");
     rect_btn = new QPushButton;
     rect_btn->setCheckable(true);
     rect_btn->setToolTip(tr_panel("Rect Highlight"));
     rect_btn->setIcon(cached_icon(QString::fromUtf8("方框.svg")));
-    rect_btn->setStyleSheet("QPushButton { padding: 0px; }");
+    apply_style_sheet(rect_btn, "QPushButton { padding: 0px; }");
     mode_group = new QButtonGroup(this);
     mode_group->setExclusive(true);
     mode_group->addButton(freehand_btn);

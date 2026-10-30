@@ -7207,4 +7207,13 @@ Replace it?</source>
         <translation>コピーしたファイルとフォルダー。アイコン、名前、サイズを表示します。</translation>
     </message>
 </context>
+  <context>
+    <name>SettingsDialog</name>
+    <message><source>Automatic Updates</source><translation>自動更新</translation></message>
+    <message><source>Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open.</source><translation>GitHub の正式リリースを自動確認します。アプリのウィンドウとピン留め画像を閉じた後、ダウンロード、インストール、再起動します。</translation></message>
+  </context>
+  <context>
+    <name>UpdateController</name>
+    <message><source>The update will install when application windows and pinned images are closed.</source><translation>アプリのウィンドウとピン留め画像を閉じると更新をインストールします。</translation></message>
+  </context>
 </TS>

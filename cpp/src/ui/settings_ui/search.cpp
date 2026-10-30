@@ -1,6 +1,7 @@
 #include "ui/settings_ui/search.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "ui/fluent_lite/cards.h"
 #include "ui/fluent_lite/inputs.h"
 #include "ui/fluent_lite/labels.h"
@@ -315,7 +316,7 @@ public:
         apply_theme();
     }
     void apply_theme() {
-        list->setStyleSheet("QListWidget#SettingsSearchResults { background: transparent; border: none; outline: none; }" + scrollbar_qss(list));
+        apply_style_sheet(list, "QListWidget#SettingsSearchResults { background: transparent; border: none; outline: none; }" + scrollbar_qss(list));
         apply_theme_text_style(empty, 13, false, {}, true);
         update();
     }
@@ -327,9 +328,7 @@ protected:
         const auto &t = get_ui_theme()->tokens();
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
-        painter.setPen(css_color(t.border));
-        painter.setBrush(css_color(t.popup_background));
-        painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), dialog_scaled(10), dialog_scaled(10));
+        paint_material_surface(painter,QRectF(rect()).adjusted(0.5,0.5,-0.5,-0.5),dialog_scaled(10),css_color(t.popup_background),MaterialDepth::Raised);
     }
 };
 
@@ -467,7 +466,7 @@ void SettingsSearchBox::apply_theme() {
     search_icon_->setPixmap(tinted_icon(FluentIcon::Search, t.text_muted).pixmap(QSize(icon, icon), search_icon_->devicePixelRatioF()));
     clear_button_->setIcon(tinted_icon(FluentIcon::Close, t.text_muted));
     clear_button_->setIconSize(QSize(dialog_scaled(12), dialog_scaled(12)));
-    clear_button_->setStyleSheet(QString("QToolButton#SettingsSearchClear { border: none; background: transparent; border-radius: %1px; }"
+    apply_style_sheet(clear_button_, QString("QToolButton#SettingsSearchClear { border: none; background: transparent; border-radius: %1px; }"
                                          "QToolButton#SettingsSearchClear:hover { background: %2; }")
                                      .arg(dialog_scaled(6))
                                      .arg(t.surface_hover));

@@ -22,6 +22,7 @@
 #include <QJsonObject>
 #include <QPixmap>
 #include <QPainter>
+#include <QPainterPath>
 #include <QScreen>
 #include <QScrollArea>
 #include <QStringDecoder>
@@ -30,6 +31,21 @@
 namespace jietuba::clipboard {
 namespace {
 QString tr_preview(const char *text) { return QCoreApplication::translate("ClipboardPreview", text); }
+
+QPixmap rounded_preview(const QPixmap &source) {
+    QPixmap result(source.size());
+    result.setDevicePixelRatio(source.devicePixelRatio());
+    result.fill(Qt::transparent);
+    QPainter painter(&result);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QRectF bounds(QPointF(), QSizeF(source.size()) / source.devicePixelRatio());
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(Qt::white);
+    painter.drawRoundedRect(bounds, scaled(6), scaled(6));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.drawPixmap(QPointF(), source);
+    return result;
+}
 
 // What the picture of an item's preview is loaded from; none for items shown as text.
 std::optional<PreviewImageRequest> image_request(const ClipboardItem &item, ClipboardManager *manager) {
@@ -95,7 +111,7 @@ QDialog *show_detail_preview(const ClipboardItem &item, ClipboardManager &manage
     dialog->setWindowTitle(i18n_tr(mode == "formats" ? "Formats" : "Preview", "ClipboardWindow"));
     dialog->resize(scaled(700), scaled(500));
     const auto &c = theme.colors;
-    dialog->setStyleSheet(QString("QDialog { background: %1; color: %2; } QTextEdit, QScrollArea { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; }")
+    apply_style_sheet(dialog, QString("QDialog { background: %1; color: %2; } QTextEdit, QScrollArea { background: %1; color: %2; border: 1px solid %3; border-radius: %4px; }")
                               .arg(c.bg_primary, c.text_primary, c.border_primary).arg(scaled(6)));
     auto *layout = new QVBoxLayout(dialog);
     layout->setContentsMargins(scaled(12), scaled(12), scaled(12), scaled(12));
@@ -224,7 +240,7 @@ PreviewPopup *PreviewPopup::instance() {
 PreviewPopup::PreviewPopup() : QWidget(nullptr) {
     // Frameless, tool window, on top.
     setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground, false);
+    setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_ShowWithoutActivating, true);
     setup_ui();
     show_timer_.setSingleShot(true);
@@ -276,7 +292,7 @@ void PreviewPopup::apply_scale() {
     // Cached pictures are scaled to the old size.
     loader_.clear_cache();
     // The type selector names the C++ class (namespaces become "--").
-    setStyleSheet(QString(R"(
+    apply_style_sheet(this, QString(R"(
             jietuba--clipboard--PreviewPopup {
                 background: #FAFAFA;
                 border: 1px solid #D0D0D0;
@@ -284,19 +300,20 @@ void PreviewPopup::apply_scale() {
             }
         )")
                       .arg(scaled(8)));
-    const int margin = scaled(2);
+    const int margin = scaled(7);
     layout_->setContentsMargins(margin, margin, margin, margin);
     // The content has no frame of its own; a line under the title marks where it starts. The title lines up with the text below it.
     title_line_->setFixedHeight(1);
-    title_label->setStyleSheet(QString("font-size: %1px; color: #666; font-weight: bold; padding: %2px %3px %4px %3px;")
+    apply_style_sheet(title_label, QString("font-size: %1px; color: #666; font-weight: bold; padding: %2px %3px %4px %3px;")
                                    .arg(scaled(12))
                                    .arg(scaled(4))
                                    .arg(scaled(10))
                                    .arg(scaled(6)));
-    content_widget->setStyleSheet(QString(R"(
+    apply_style_sheet(content_widget, QString(R"(
             QTextEdit {
-                background: #FAFAFA;
+                background: transparent;
                 border: none;
+                border-radius: 6px;
                 padding: %1px %2px;
                 font-size: %3px;
                 color: #333;
@@ -306,6 +323,7 @@ void PreviewPopup::apply_scale() {
                                       .arg(scaled(8))
                                       .arg(scaled(13)));
     content_widget->document()->setDocumentMargin(scaled(2));
+    content_widget->viewport()->setAutoFillBackground(false);
     // Only a maximum size, so the content sizes itself.
     content_widget->setMaximumSize(scaled(500), scaled(400));
     set_own_style(image_label, QString("background: #F0F0F0; border: 1px solid #E0E0E0; border-radius: %1px;").arg(scaled(4)));
@@ -419,7 +437,7 @@ void PreviewPopup::show_text_preview(const ClipboardItem &item) {
         painter.drawRect(swatch.rect().adjusted(0, 0, -1, -1));
         painter.end();
         color_label->setFixedSize(swatch_size);
-        color_label->setPixmap(swatch);
+        color_label->setPixmap(rounded_preview(swatch));
         color_label->show();
         content_widget->setFixedWidth(swatch_size.width());
     }
@@ -530,7 +548,7 @@ bool PreviewPopup::show_image_preview(const QImage &image) {
     image_label->hide();
     if (image.isNull()) return false;
     const QPixmap pixmap = QPixmap::fromImage(image);
-    image_label->setPixmap(pixmap);
+    image_label->setPixmap(rounded_preview(pixmap));
     image_label->setFixedSize(pixmap.size());
     image_label->show();
     return true;

@@ -7209,4 +7209,13 @@ Replace it?</source>
         <translation>复制的文件和文件夹，显示图标、名称和大小。</translation>
     </message>
 </context>
+  <context>
+    <name>SettingsDialog</name>
+    <message><source>Automatic Updates</source><translation>自动更新</translation></message>
+    <message><source>Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open.</source><translation>自动检查 GitHub 正式版。在所有程序窗口和钉图关闭后下载、安装并重启。</translation></message>
+  </context>
+  <context>
+    <name>UpdateController</name>
+    <message><source>The update will install when application windows and pinned images are closed.</source><translation>关闭程序窗口和钉图后将自动安装更新。</translation></message>
+  </context>
 </TS>

@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "clipboard/ui/widgets/quick_edit_popup.h"
 #include "clipboard/ui/theme/theme_styles.h"
 #include "clipboard/ui/widgets/preview_popup.h"
@@ -57,7 +58,7 @@ void QuickEditPopup::open_for(const ClipboardItem &item, const QPoint &anchor, c
     // Changing the content drops the original formatting; the paste is plain text.
     format_hint->setText(item.html_content && !item.html_content->isEmpty() ? tr_quick_edit("Formatting will be removed") : QString());
     // The type selector names the C++ class (namespaces become "--").
-    setStyleSheet(ThemeStyleGenerator(theme).generate_quick_edit_style().replace("QuickEditPopup {", "jietuba--clipboard--QuickEditPopup {"));
+    apply_style_sheet(this, ThemeStyleGenerator(theme).generate_quick_edit_style().replace("QuickEditPopup {", "jietuba--clipboard--QuickEditPopup {"));
     // Sizes follow the toolbar and panel scale, laid out at the current scale on each open.
     const int margin = scaled(8);
     layout_->setContentsMargins(margin, margin, margin, margin);

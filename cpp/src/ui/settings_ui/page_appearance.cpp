@@ -111,7 +111,7 @@ void build_clipboard_section(SettingsDialog *dialog, SettingsCardGroup *grp) {
     QObject::connect(theme_btn, &QPushButton::clicked, dialog, [dialog, theme_btn] {
         auto *menu = new QMenu(dialog);
         menu->setAttribute(Qt::WA_DeleteOnClose);
-        menu->setStyleSheet(theme_menu_style() + QString(" QMenu { padding: %1px; }").arg(dialog_scaled(4)));
+        apply_style_sheet(menu, theme_menu_style() + QString(" QMenu { padding: %1px; }").arg(dialog_scaled(4)));
         auto buttons = std::make_shared<std::vector<std::pair<QString, ColorSwatchButton *>>>();
         auto update_btns = [buttons](const QString &selected) {
             for (const auto &[name, btn] : *buttons) {
@@ -176,7 +176,7 @@ void update_color_btn(QWidget *btn, const QColor &color) {
 QWidget *create_appearance_page(SettingsDialog *dialog) {
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);
@@ -196,7 +196,7 @@ QWidget *create_appearance_page(SettingsDialog *dialog) {
     layout->addWidget(grp_clip);
 
     auto *hint = new CaptionLabel(dialog->tr_text("💡 Hint: Color changes take effect on the next screenshot."), view);
-    hint->setStyleSheet(QString("padding: %1px;").arg(dialog_scaled(5)));
+    apply_style_sheet(hint, QString("padding: %1px;").arg(dialog_scaled(5)));
     layout->addWidget(hint);
     layout->addStretch();
     scroll->setWidget(view);

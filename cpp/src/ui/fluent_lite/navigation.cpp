@@ -31,7 +31,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(css_color(ACCENT));
+        painter.setBrush(css_color(get_ui_theme()->tokens().accent));
         painter.drawRoundedRect(QRectF(dialog_scaled(4), (height() - bar_height) / 2, bar_width, bar_height), bar_width / 2, bar_width / 2);
     }
 };
@@ -54,13 +54,16 @@ NavigationInterface::NavigationInterface(QWidget *parent) : QWidget(parent), gro
     top_view->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     set_own_style(top_view, "background: transparent;");
     auto *top_view_layout = new QVBoxLayout(top_view);
-    top_view_layout->setContentsMargins(0, 0, 0, 0);
+    // Shadows extend outside each item; the scroll viewport clips its children.
+    const int shadow_gutter=dialog_scaled(12);
+    top_view_layout->setContentsMargins(shadow_gutter,shadow_gutter,shadow_gutter,shadow_gutter);
     top_ = new QVBoxLayout;
     top_->setSpacing(dialog_scaled(2));
     top_view_layout->addLayout(top_);
     top_view_layout->addStretch(1);
     scroll_->setWidget(top_view);
     bottom_ = new QVBoxLayout;
+    bottom_->setContentsMargins(shadow_gutter,shadow_gutter,shadow_gutter,shadow_gutter);
     bottom_->setSpacing(dialog_scaled(2));
     layout_->addWidget(scroll_, 1);
     layout_->addLayout(bottom_);

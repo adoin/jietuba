@@ -1,4 +1,5 @@
 #include "clipboard/core/manager.h"
+#include "clipboard/services/group_service.h"
 #include "plugins/plugin_filters.h"
 #include "core/i18n.h"
 #include "ui/toast.h"
@@ -547,7 +548,8 @@ std::optional<qint64> ClipboardManager::create_group(const QString &name, const 
     const QByteArray rule_text = filter_rule ? filter_rule->to_json() : QByteArray();
     qint64 group_id = 0;
     char error[ERROR_LEN] = {};
-    if (!jb_clipboard_create_group(backend.get(), utf8(name).constData(), optional_arg(color, color_text), optional_arg(icon, icon_text), group_type,
+    const QString safe_name = group_name_without_type_collision(name, get_groups());
+    if (!jb_clipboard_create_group(backend.get(), utf8(safe_name).constData(), optional_arg(color, color_text), optional_arg(icon, icon_text), group_type,
                                    filter_rule ? rule_text.constData() : nullptr, &group_id, error, ERROR_LEN)) {
         log_error(T("创建分组失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
         return std::nullopt;
@@ -584,7 +586,8 @@ bool ClipboardManager::rename_group(qint64 group_id, const QString &name) {
     const auto backend = this->backend();
     if (!backend) return false;
     char error[ERROR_LEN] = {};
-    if (!jb_clipboard_rename_group(backend.get(), group_id, utf8(name).constData(), error, ERROR_LEN)) {
+    const QString safe_name = group_name_without_type_collision(name, get_groups(), group_id);
+    if (!jb_clipboard_rename_group(backend.get(), group_id, utf8(safe_name).constData(), error, ERROR_LEN)) {
         log_error(T("重命名分组失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
         return false;
     }
@@ -598,7 +601,8 @@ bool ClipboardManager::update_group(qint64 group_id, const QString &name, const 
     QByteArray color_text, icon_text;
     const QByteArray rule_text = filter_rule ? filter_rule->to_json() : QByteArray();
     char error[ERROR_LEN] = {};
-    if (!jb_clipboard_update_group(backend.get(), group_id, utf8(name).constData(), optional_arg(color, color_text), optional_arg(icon, icon_text), group_type,
+    const QString safe_name = group_name_without_type_collision(name, get_groups(), group_id);
+    if (!jb_clipboard_update_group(backend.get(), group_id, utf8(safe_name).constData(), optional_arg(color, color_text), optional_arg(icon, icon_text), group_type,
                                    filter_rule ? rule_text.constData() : nullptr, error, ERROR_LEN)) {
         log_error(T("更新分组失败: {e}", {{"e", QString::fromUtf8(error)}}), "Clipboard");
         return false;

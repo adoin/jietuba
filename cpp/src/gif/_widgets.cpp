@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "gif/_widgets.h"
 #include "core/resource_manager.h"
 #include "core/theme.h"
@@ -33,7 +34,7 @@ void popup_menu(QMenu *menu, QWidget *anchor, bool below) {
     // The menu is always light, and the text colour must sit on ::item: the global
     // style sheet colours QMenu::item by UI theme, which a colour on QMenu alone does
     // not override, giving white text in dark mode.
-    menu->setStyleSheet(QString(R"(
+    apply_style_sheet(menu, QString(R"(
         QMenu { background: #fcfdff; color: #2a3243; border: 1px solid #dce2eb;
                  border-radius: %1px; padding: %2px; }
         QMenu::item { padding: %3px %4px; font-size: %5px;
@@ -75,7 +76,7 @@ ClickMenuButton::ClickMenuButton(std::vector<std::pair<QString, QVariant>> optio
 
 void ClickMenuButton::apply_style() {
     const QString color = enabled_flag_ ? "#333" : "#bbb";
-    setStyleSheet(QString("QPushButton { font-size: %1px; color: %2; padding: %3px %4px; border: none; border-radius: %5px; background: transparent; }"
+    apply_style_sheet(this, QString("QPushButton { font-size: %1px; color: %2; padding: %3px %4px; border: none; border-radius: %5px; background: transparent; }"
                           "QPushButton:hover { background: rgba(15,23,42,0.07); }")
                       .arg(scaled(12))
                       .arg(color)

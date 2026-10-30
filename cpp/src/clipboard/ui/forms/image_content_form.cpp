@@ -4,6 +4,7 @@
 #include "core/logger.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "ui/fluent_lite/buttons.h"
 #include "ui/fluent_lite/inputs.h"
 #include "ui/fluent_lite/theme.h"
@@ -87,9 +88,7 @@ void ImagePreview::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     const int radius = dialog_scaled(10);
-    painter.setPen(css_color(tokens.border));
-    painter.setBrush(css_color(tokens.surface_subtle));
-    painter.drawRoundedRect(rect().adjusted(0, 0, -1, -1), radius, radius);
+    paint_material_surface(painter,QRectF(rect()).adjusted(0.5,0.5,-0.5,-0.5),radius,css_color(tokens.surface_subtle),MaterialDepth::Recessed);
 
     const QRect target = image_rect();
     if (image_.hasAlphaChannel()) {

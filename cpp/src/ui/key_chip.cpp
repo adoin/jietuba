@@ -3,6 +3,7 @@
 #include "core/shortcut_manager.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "ui/fluent_lite/theme.h"
 #include <QFontMetrics>
 #include <QMouseEvent>
@@ -46,6 +47,7 @@ QString format_shortcut_text(const QString &value) {
 }
 
 KeyChipLineEdit::KeyChipLineEdit(QWidget *parent) : QLineEdit(parent) {
+    setProperty("_materialNative",true);
     setMouseTracking(true);
     setCursor(Qt::PointingHandCursor);
     setFixedHeight(dialog_scaled(CHIP_HEIGHT));
@@ -113,11 +115,7 @@ void KeyChipLineEdit::paintEvent(QPaintEvent *) {
     const auto [parts, pending] = shortcut_display_parts(text());
 
     if (parts.isEmpty() && !pending && !focused) {
-        QColor border = css_color(t.text_muted);
-        border.setAlphaF(0.55);
-        painter.setPen(QPen(border, 1.0, Qt::DashLine));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRoundedRect(rect, radius, radius);
+        paint_material_surface(painter,rect,radius,css_color(t.input_background),MaterialDepth::Recessed);
         paint_plus(painter, QPointF(pad + dialog_scaled(5), rect.center().y()), css_color(t.text_muted));
         painter.setPen(css_color(t.text_muted));
         const QRectF text_rect = rect.adjusted(pad + dialog_scaled(16), 0, -pad, 0);
@@ -137,9 +135,7 @@ void KeyChipLineEdit::paintEvent(QPaintEvent *) {
         border = css_color(underMouse() ? t.accent : t.border_hover);
     }
     const double inset = width / 2;
-    painter.setPen(QPen(border, width));
-    painter.setBrush(fill);
-    painter.drawRoundedRect(QRectF(this->rect()).adjusted(inset, inset, -inset, -inset), radius, radius);
+    paint_material_surface(painter,QRectF(this->rect()).adjusted(inset,inset,-inset,-inset),radius,fill,MaterialDepth::Recessed);
 
     const QRectF clear = clear_rect();
     const double text_right = !text().isEmpty() ? clear.left() : rect.right() - pad;

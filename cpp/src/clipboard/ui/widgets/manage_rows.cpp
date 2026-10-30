@@ -123,13 +123,6 @@ void ContentRowDelegate::paint(QPainter *painter, const QStyleOptionViewItem &op
     paint_row_background(painter, option, rect);
 
     const QRect inner = rect.adjusted(dialog_scaled(14), 0, -dialog_scaled(12), 0);
-    if (index.row() < index.model()->rowCount() - 1) {
-        QPen pen(css_color(tokens.border), 1);
-        pen.setStyle(Qt::DashLine);
-        painter->setPen(pen);
-        const double y = option.rect.bottom() + 0.5;
-        painter->drawLine(QPointF(inner.left(), y), QPointF(inner.right(), y));
-    }
     int x = inner.left();
 
     const auto image = thumbnail(index.data(THUMB_ROLE).toString());

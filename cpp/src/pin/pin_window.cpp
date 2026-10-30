@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "pin/pin_window.h"
 #include "canvas/scene.h"
 #include "canvas/items/background_item.h"
@@ -230,7 +231,7 @@ PinWindow::PinWindow(const QImage &image, const QPoint &position, ToolSettingsMa
     if (win_opacity_ < 1.0) setWindowOpacity(win_opacity_);
     // Zoom percentage hint.
     zoom_label_ = new QLabel(this);
-    zoom_label_->setStyleSheet(".QLabel {"
+    apply_style_sheet(zoom_label_, ".QLabel {"
                                "  color: #2EC4B6;"
                                "  background: rgba(0, 0, 0, 160);"
                                "  border-radius: 4px;"

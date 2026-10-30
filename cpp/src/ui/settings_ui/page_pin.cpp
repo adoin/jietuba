@@ -221,7 +221,7 @@ const std::set<QString> PIN_BEHAVIOR_KEYS = {
 QWidget *create_pin_page(SettingsDialog *dialog) {
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);

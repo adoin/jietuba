@@ -3,6 +3,7 @@
 #include "core/updater_process.h"
 #include <QObject>
 #include <QPointer>
+#include <QDateTime>
 #include <utility>
 
 namespace jietuba {
@@ -14,6 +15,7 @@ public:
     virtual ~UpdateHost() = default;
     // Empty when an update may start; otherwise the reason shown to the user.
     virtual QString update_busy_reason() = 0;
+    virtual bool automatic_update_ready() { return update_busy_reason().isEmpty(); }
     virtual std::pair<bool, QString> prepare_for_update() = 0;
     virtual void cancel_update_preparation() = 0;
     virtual bool quit_app() = 0;
@@ -29,6 +31,8 @@ public:
     void present(const ReleaseInfo &release);
     void start();
     void cancel();
+    void set_automatic_updates(bool enabled);
+    void automatic_tick();
     UpdaterProcess *runner;
     QPointer<UpdateDialog> dialog;
     std::optional<ReleaseInfo> release;
@@ -44,6 +48,12 @@ private:
     void remove_request();
     void discard_download();
     UpdateHost *host_;
+    QTimer automatic_timer_;
+    GitHubReleaseChecker *automatic_checker_;
+    QDateTime next_check_;
+    std::optional<ReleaseInfo> automatic_pending_;
+    bool automatic_enabled_ = false;
+    bool automatic_run_ = false;
     bool cancelled_ = false;
     bool failed_ = false;
     bool committed_ = false;

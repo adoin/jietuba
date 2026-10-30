@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/screenshot_countdown.h"
 #include "core/platform_utils.h"
 #include "core/ui_scale.h"
@@ -13,7 +14,7 @@ ScreenshotCountdown::ScreenshotCountdown(QScreen *screen)
     setAttribute(Qt::WA_ShowWithoutActivating);
     setAlignment(Qt::AlignCenter);
     setFixedSize(scaled(96), scaled(96));
-    setStyleSheet(QString("QLabel { color: white; font-size: %1px; font-weight: bold; }").arg(scaled(56)));
+    apply_style_sheet(this, QString("QLabel { color: white; font-size: %1px; font-weight: bold; }").arg(scaled(56)));
     setText(QString::number(remaining_));
     if (screen) move(screen->geometry().center() - rect().center());
     timer_.setTimerType(Qt::PreciseTimer);

@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/watermark_input_dialog.h"
 #include "canvas/items/watermark_item.h"
 #include "core/ui_scale.h"
@@ -53,7 +54,7 @@ WatermarkInputDialog::WatermarkInputDialog(const QString &template_text, const Q
     // Over the full-screen capture window, on top like the capture's colour picker.
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint);
     const auto &tokens = ui_tokens(this);
-    setStyleSheet(QString("QDialog { background: %1; }").arg(tokens.window));
+    apply_style_sheet(this, QString("QDialog { background: %1; }").arg(tokens.window));
     time_format_ = default_watermark_time_format();
     for (const auto &entry : watermark_time_formats())
         if (time_format == entry.format) time_format_ = time_format;
@@ -63,14 +64,14 @@ WatermarkInputDialog::WatermarkInputDialog(const QString &template_text, const Q
     edit->setPlaceholderText(wid_tr("Type the watermark. Use the time button to insert the capture time."));
     edit->setPlainText(template_text);
     edit->setFixedHeight(dialog_scaled(BASE_EDIT_HEIGHT));
-    edit->setStyleSheet(QString("QTextEdit { color: %1; background: %2; border: 1px solid %3; border-radius: %4px;"
+    apply_style_sheet(edit, QString("QTextEdit { color: %1; background: %2; border: 1px solid %3; border-radius: %4px;"
                                 " padding: %5px; font: %6px %7; selection-background-color: %8; }"
                                 "QTextEdit:focus { border-color: %8; }")
                             .arg(tokens.text, tokens.input_background, tokens.border)
                             .arg(dialog_scaled(INPUT_RADIUS))
                             .arg(dialog_scaled(4))
                             .arg(dialog_scaled(14))
-                            .arg(FONT_FAMILY, ACCENT));
+                            .arg(FONT_FAMILY, get_ui_theme()->tokens().accent));
     connect(edit, &QTextEdit::textChanged, this, &WatermarkInputDialog::refresh_preview);
 
     preview = new CaptionLabel("", this);
@@ -87,7 +88,7 @@ WatermarkInputDialog::WatermarkInputDialog(const QString &template_text, const Q
     time_menu->setToolTipsVisible(true);
     connect(time_menu, &QMenu::aboutToShow, this, &WatermarkInputDialog::fill_time_menu);
     time_button->setMenu(time_menu);
-    time_button->setStyleSheet(QString("QToolButton { color: %1; background: %2; border: 1px solid %3; border-radius: %4px;"
+    apply_style_sheet(time_button, QString("QToolButton { color: %1; background: %2; border: 1px solid %3; border-radius: %4px;"
                                        " padding: %5px %6px %5px %7px; min-height: %8px; }"
                                        "QToolButton:hover { border-color: %9; background: %10; }"
                                        "QToolButton::menu-button { width: %11px; border: none; }")

@@ -23,10 +23,10 @@ constexpr double PANEL_RADIUS = 12.0;
 void paint_rounded_panel(QWidget *widget);
 
 // Ink for values and line previews, a lighter grey for glyphs and chevrons.
-inline const QColor CONTROL_INK = QColor("#2a3243");
-inline const QColor CONTROL_SUB = QColor("#6a7387");
-inline const QColor CONTROL_FILL = QColor(15, 23, 42, 15);
-inline const QColor CONTROL_FILL_HOVER = QColor(15, 23, 42, 26);
+QColor control_ink();
+QColor control_sub();
+QColor control_fill();
+QColor control_fill_hover();
 inline const QColor DIVIDER_COLOR = QColor(15, 23, 42, 30);
 
 // The theme colour for selected states; user configurable.

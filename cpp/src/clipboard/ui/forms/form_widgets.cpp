@@ -2,6 +2,7 @@
 #include "clipboard/ui/group_kind_style.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "ui/fluent_lite/theme.h"
 #include "ui/settings_ui/components.h"
 #include <QEvent>
@@ -72,6 +73,7 @@ QLabel *field_hint(const QString &text) {
 
 OptionCard::OptionCard(const QString &title, const QString &description, const QString &kind, QWidget *parent)
     : QAbstractButton(parent), title_(title), description_(description), kind_(kind) {
+    setProperty("_materialNative",true);
     setText(title);
     setCheckable(true);
     setCursor(Qt::PointingHandCursor);
@@ -128,15 +130,16 @@ void OptionCard::paintEvent(QPaintEvent *) {
         painter.setPen(Qt::NoPen);
         painter.drawRoundedRect(rect, radius, radius);
         painter.setBrush(kind_tint(kind_, 0.10, tokens));
-        painter.setPen(QPen(kind_color(kind_), dialog_scaled_f(1.5)));
+        painter.setPen(Qt::NoPen);
     } else if (checked) {
         painter.setBrush(css_color(tokens.accent_soft));
-        painter.setPen(QPen(css_color(tokens.accent), dialog_scaled_f(1.5)));
+        painter.setPen(Qt::NoPen);
     } else {
         painter.setBrush(css_color(hovered ? tokens.surface_hover : tokens.input_background));
-        painter.setPen(QPen(css_color(hovered ? tokens.border_hover : tokens.border), 1));
+        painter.setPen(Qt::NoPen);
     }
     painter.drawRoundedRect(rect, radius, radius);
+    paint_material_edges(painter,rect,radius,css_color(tokens.window),checked?MaterialDepth::Recessed:MaterialDepth::Raised);
 
     const QFont title_font = title_font_of(font());
     const QFont description_font = description_font_of(font());

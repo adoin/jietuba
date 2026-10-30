@@ -1,6 +1,7 @@
 #include "clipboard/ui/widgets/reorder_list.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "ui/fluent_lite/theme.h"
 #include <QCursor>
 #include <QDrag>
@@ -323,9 +324,7 @@ void ReorderListWidget::paint_drop_overlay() {
         QRectF pill(0, 0, metrics.horizontalAdvance(text) + pad_x * 2, metrics.height() + pad_y * 2);
         pill.moveCenter(rect.center());
         painter.setFont(font);
-        painter.setBrush(css_color(tokens.popup_background));
-        painter.setPen(QPen(css_color(tokens.border), 1));
-        painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+        paint_material_surface(painter,pill,pill.height()/2,css_color(tokens.popup_background),MaterialDepth::Raised);
         painter.setPen(css_color(tokens.accent_text));
         painter.drawText(pill, Qt::AlignCenter, text);
     }

@@ -22,7 +22,7 @@ QString tr(const char *text) { return i18n_tr(text, "ClipboardWindow"); }
 
 void style_dialog(QDialog &dialog) {
     const auto &t = get_ui_theme()->tokens();
-    dialog.setStyleSheet(QString(R"(
+    apply_style_sheet(&dialog, QString(R"(
         QDialog#pluginManagerDialog, QDialog#pluginSettingsDialog { background: %1; color: %2; }
         QListWidget#pluginList, QPlainTextEdit { background: %3; color: %2; border: 1px solid %4; border-radius: %5px; padding: %6px; }
         QListWidget#pluginList::item { padding: %7px; border-radius: %8px; }

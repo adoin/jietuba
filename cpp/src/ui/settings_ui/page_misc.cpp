@@ -67,7 +67,7 @@ QWidget *create_misc_page(SettingsDialog *dialog) {
     auto *config = dialog->config_manager;
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);
@@ -127,7 +127,7 @@ QWidget *create_misc_page(SettingsDialog *dialog) {
     layout->addWidget(grp_backup);
 
     auto *hint = new CaptionLabel(dialog->tr_text("💡 Hint: Even with background startup, you can operate from system tray."), view);
-    hint->setStyleSheet(QString("padding: %1px;").arg(dialog_scaled(5)));
+    apply_style_sheet(hint, QString("padding: %1px;").arg(dialog_scaled(5)));
     layout->addWidget(hint);
     layout->addStretch();
     scroll->setWidget(view);

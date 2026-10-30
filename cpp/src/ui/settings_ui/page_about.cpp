@@ -11,12 +11,13 @@
 #include "ui/settings_ui/components.h"
 #include "ui/settings_ui/dialog.h"
 #include "ui/settings_ui/pages.h"
+#include "settings/tool_settings.h"
 
 namespace jietuba {
 QWidget *create_about_page(SettingsDialog *dialog) {
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
     auto *layout = new QVBoxLayout(view);
@@ -75,6 +76,17 @@ QWidget *create_about_page(SettingsDialog *dialog) {
         });
     }
     group->addSettingCard(name_card);
+    auto *automatic=new SwitchSettingCard(FluentIcon::Sync,dialog->tr_text("Automatic Updates"),
+        dialog->tr_text("Check GitHub Releases automatically. Download, install and restart when no application windows or pinned images are open."),group);
+    automatic->setObjectName("automaticUpdatesToggle");
+    automatic->setChecked(dialog->config_manager->get_automatic_updates());
+    automatic->setEnabled(updater_bundled());
+    QObject::connect(automatic,&SwitchSettingCard::checkedChanged,dialog,[dialog](bool enabled) {
+        dialog->config_manager->set_automatic_updates(enabled);
+        dialog->config_manager->qsettings.settings().sync();
+        if(auto *controller=qobject_cast<UpdateController *>(qApp->property("_update_controller").value<QObject *>())) controller->set_automatic_updates(enabled);
+    });
+    group->addSettingCard(automatic);
     group->addSettingCard(new SettingCard(FluentIcon::People, dialog->tr_text("Developer"), "JYAARU", group));
 
     auto *license_card = new SettingCard(FluentIcon::Document, dialog->tr_text("Licenses"), "MIT", group);

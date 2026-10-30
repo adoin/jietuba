@@ -3,8 +3,15 @@
 #include "core/native.h"
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QCoreApplication>
 
 namespace jietuba::clipboard {
+QStringList type_tab_labels() {
+    QStringList labels{QCoreApplication::translate("ClipboardWindow", "All")};
+    for (const auto *kind : offered_kinds()) labels.append(QCoreApplication::translate("ClipboardWindow", kind->label));
+    return labels;
+}
+
 const QList<KindInfo> &kind_catalog() {
     static const QList<KindInfo> catalog = {
         {"text", "Text", QString::fromUtf8("📝")},

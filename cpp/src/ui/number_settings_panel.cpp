@@ -37,7 +37,7 @@ struct Glyph {
         pixmap.setDevicePixelRatio(ratio);
     }
     // Stroke width scales with the icon: 1.4 at the base side of 18.
-    QPen pen() const { return QPen(CONTROL_INK, s * 1.4 / 18, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin); }
+    QPen pen() const { return QPen(control_ink(), s * 1.4 / 18, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin); }
 };
 
 void stroke_letter_a(QPainter &painter, const QRectF &box) {

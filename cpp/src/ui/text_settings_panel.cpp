@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/text_settings_panel.h"
 #include "canvas/items/text_item.h"
 #include "core/constants.h"
@@ -120,11 +121,11 @@ QString TextSettingsPanel::popup_controls_qss() {
             font-size: %17px;
         }
     )").arg(scaled(24)).arg(scaled(4)).arg(scaled(6)).arg(groove).arg(scaled(2)).arg(accent).arg(scaled(12)).arg(-scaled(5)).arg(-scaled(6)).arg(scaled(7))
-        .arg(DIVIDER_COLOR.red()).arg(DIVIDER_COLOR.green()).arg(DIVIDER_COLOR.blue()).arg(DIVIDER_COLOR.alpha()).arg(CONTROL_INK.name(), CSS_FONT_FAMILY).arg(scaled(11));
+        .arg(DIVIDER_COLOR.red()).arg(DIVIDER_COLOR.green()).arg(DIVIDER_COLOR.blue()).arg(DIVIDER_COLOR.alpha()).arg(control_ink().name(), CSS_FONT_FAMILY).arg(scaled(11));
 }
 
 TextSettingsPanel::TextSettingsPanel(QWidget *parent) : QWidget(parent) {
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, isWindow());
     cached_fonts_ = get_available_text_fonts();
     current_font = QFont(get_default_text_font_for_language(), 16);
     outline_color = QColor(TextItem::DEFAULT_OUTLINE_COLOR);
@@ -151,7 +152,7 @@ QString TextSettingsPanel::build_stylesheet() const {
 
 void TextSettingsPanel::apply_scale() {
     // Font, colour and toggles stay; only sizes change.
-    setStyleSheet(build_stylesheet());
+    apply_style_sheet(this, build_stylesheet());
     const int mh = scaled(BASE_MARGIN_H), mv = scaled(BASE_MARGIN_V);
     layout()->setContentsMargins(mh, mv, mh, mv);
     layout()->setSpacing(scaled(BASE_SPACING));
@@ -160,7 +161,7 @@ void TextSettingsPanel::apply_scale() {
     const int btn_sz = scaled(BASE_BTN);
     for (const auto &[button, decoration] : font_style_buttons_) {
         button->setFixedSize(btn_sz, btn_sz);
-        button->setStyleSheet(QString(R"(
+        apply_style_sheet(button, QString(R"(
                 QPushButton {
                     %1
                     font-size: %2px;
@@ -439,7 +440,7 @@ void TextSettingsPanel::update_background_btn_style() {
         const int alpha = std::max(0, std::min(255, background_opacity));
         const int luminance = color.red() * 3 + color.green() * 6 + color.blue();
         const QString text_color = luminance >= 1280 ? "#000000" : "#ffffff";
-        background_btn->setStyleSheet(QString(R"(
+        apply_style_sheet(background_btn, QString(R"(
                 QPushButton {
                     background-color: rgba(%1, %2, %3, %4);
                     color: %5;
@@ -449,7 +450,7 @@ void TextSettingsPanel::update_background_btn_style() {
                 }
             )").arg(color.red()).arg(color.green()).arg(color.blue()).arg(alpha).arg(text_color).arg(radius).arg(scaled(12)));
     } else {
-        background_btn->setStyleSheet(QString(R"(
+        apply_style_sheet(background_btn, QString(R"(
                 QPushButton {
                     background-color: transparent;
                     border: none;

@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/reorderable_rows.h"
 #include "core/qt_utils.h"
 #include "core/ui_scale.h"
@@ -69,7 +70,7 @@ ReorderableRowList::ReorderableRowList(QWidget *parent) : QScrollArea(parent) {
     setWidgetResizable(true);
     setFrameShape(QFrame::NoFrame);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(this, "QScrollArea { border: none; background: transparent; }");
     setWidget(card_);
 }
 

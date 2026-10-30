@@ -1,3 +1,5 @@
+#include "ui/fluent_lite/fluent_lite.h"
+#include "core/ui_theme.h"
 #include "ui/settings_ui/color_format_dialog.h"
 #include "core/i18n.h"
 #include "core/ui_scale.h"
@@ -22,7 +24,7 @@ const QColor SAMPLE_COLOR(230, 153, 60);
 class FormatRow : public DraggableRow {
 public:
     explicit FormatRow(const color_formats::ColorFormat &fmt, QWidget *parent = nullptr) : DraggableRow(parent), format(fmt) {
-        check = new QCheckBox(this);
+        check = new CheckBox(QString(),this);
         check->setChecked(fmt.enabled);
         auto *name_label = new BodyLabel(fmt.name, this);
         auto *sample_label = new CaptionLabel(this);
@@ -50,7 +52,7 @@ ColorFormatDialog::ColorFormatDialog(const QVector<color_formats::ColorFormat> &
     scale_dialog_font(*this);
     setWindowTitle(tr_text("Manage Color Formats"));
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
-    setStyleSheet(QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
+    apply_style_sheet(this, QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
 
     list_ = new ReorderableRowList(this);
     auto *hint = new CaptionLabel(tr_text("The magnifier shows one checked format at a time — Shift cycles between them, C copies whichever is shown. "

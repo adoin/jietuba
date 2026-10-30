@@ -1,4 +1,5 @@
 #include "clipboard/ui/windows/clipboard_window.h"
+#include "clipboard/core/kind_catalog.h"
 #include "plugins/plugin_package.h"
 #include "plugins/plugin_manager_dialog.h"
 #include "plugins/plugin_actions.h"
@@ -13,6 +14,7 @@
 #include "clipboard/ui/widgets/item_delegate.h"
 #include "clipboard/ui/widgets/item_drag.h"
 #include "clipboard/ui/widgets/preview_popup.h"
+#include "clipboard/ui/widgets/surface_frame.h"
 #include "clipboard/ui/widgets/selection_bar.h"
 #include "clipboard/ui/windows/pin_window.h"
 #include "core/constants.h"
@@ -22,6 +24,7 @@
 #include "core/resource_manager.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "settings/tool_settings.h"
 #include "ui/dialogs.h"
 #include "ui/toast.h"
@@ -139,13 +142,16 @@ bool ClipboardShortcutHandler::handle_key(QInputEvent *event) {
 namespace {
 // Entries of the type filter menu: the kind it selects (see FilterRule::kind), empty for every type.
 const QStringList &type_filter_kinds() {
-    static const QStringList kinds = {QString(), "text", SUB_KIND_URL, SUB_KIND_COLOR, SUB_KIND_PATH, "image", "file", "custom"};
+    static const QStringList kinds = [] {
+        QStringList keys{QString()};
+        for (const auto *kind : offered_kinds()) keys.append(kind->key);
+        return keys;
+    }();
     return kinds;
 }
 
 QStringList type_filter_label_texts() {
-    return {ClipboardWindow::tr_text("All"),  ClipboardWindow::tr_text("Text"),  ClipboardWindow::tr_text("Link"), ClipboardWindow::tr_text("Color"),
-            ClipboardWindow::tr_text("Path"), ClipboardWindow::tr_text("Image"), ClipboardWindow::tr_text("File"), ClipboardWindow::tr_text("Other")};
+    return type_tab_labels();
 }
 
 QString &geometry_file_for_test() {
@@ -287,6 +293,9 @@ void ClipboardWindow::apply_scale() {
 }
 
 void ClipboardWindow::apply_scale_metrics() {
+    layout()->setContentsMargins(scaled(20), scaled(16), scaled(20), scaled(26));
+    content_layout->setContentsMargins(scaled(10), scaled(10), scaled(10), scaled(10));
+    if (list_surface_) list_surface_->layout()->setContentsMargins(scaled(7), scaled(7), scaled(7), scaled(7));
     setMinimumSize(scaled(390), scaled(400));
     time_filter_bar->setFixedHeight(scaled(36));
     time_filter_layout_->setContentsMargins(scaled(8), scaled(4), scaled(8), scaled(4));
@@ -323,6 +332,7 @@ void ClipboardWindow::on_language_changed() {
 }
 
 void ClipboardWindow::apply_theme() {
+    setProperty("_materialDark", QColor(current_theme.colors.bg_primary).lightnessF() < 0.5);
     if (item_delegate) item_delegate->set_theme(current_theme);
     apply_opacity();
     group_bar->set_theme(current_theme);
@@ -342,7 +352,7 @@ void ClipboardWindow::load_settings() {
     config = get_tool_settings_manager();
     window_opacity = static_cast<int>(config->get_clipboard_window_opacity());
     font_size = static_cast<int>(config->get_clipboard_font_size());
-    group_bar_position = config->get_clipboard_group_bar_position();
+    group_bar_position = "top";
 }
 
 QLocale ClipboardWindow::current_date_locale() const {
@@ -383,15 +393,21 @@ void ClipboardWindow::retranslate_ui() {
 
 void ClipboardWindow::apply_opacity() {
     const ThemeStyleGenerator generator(current_theme);
-    if (container) container->setStyleSheet(generator.generate_window_style(window_opacity));
-    if (list_widget) list_widget->setStyleSheet(generator.generate_list_widget_style(window_opacity));
-    if (bottom_bar) bottom_bar->setStyleSheet(generator.generate_search_bar_style(window_opacity));
-    if (time_filter_bar) time_filter_bar->setStyleSheet(generator.generate_time_filter_bar_style(window_opacity));
-    if (type_filter_bar) type_filter_bar->setStyleSheet(generator.generate_search_bar_style(window_opacity).replace("border-top:", "border-bottom:"));
-    if (group_bar && group_bar->bar_widget) {
-        const QString border = group_bar_position == "left" ? "border-right:" : group_bar_position == "top" ? "border-bottom:" : "border-left:";
-        group_bar->bar_widget->setStyleSheet(generator.generate_search_bar_style(window_opacity).replace("border-top:", border));
+    QColor material(current_theme.colors.bg_primary);
+    if (current_theme.name == "light" || current_theme.name == "dark")
+        material = QColor(material_tokens(this).window);
+    setWindowOpacity(1.0 - std::clamp(window_opacity, 0, 100) / 100.0);
+    if (container) {
+        apply_style_sheet(container, generator.generate_window_style(0));
+        static_cast<SurfaceFrame *>(container)->set_surface(material, scaled(16));
     }
+    if (list_surface_) static_cast<SurfaceFrame *>(list_surface_)->set_surface(material, scaled(11));
+    if (search_box) static_cast<SurfaceFrame *>(search_box)->set_surface(material, scaled(10));
+    if (list_widget) apply_style_sheet(list_widget, generator.generate_list_widget_style(0));
+    if (bottom_bar) apply_style_sheet(bottom_bar, generator.generate_search_bar_style(0));
+    if (time_filter_bar) apply_style_sheet(time_filter_bar, generator.generate_time_filter_bar_style(0));
+    if (type_filter_bar) apply_style_sheet(type_filter_bar, "background: transparent; border: none;");
+    update();
 }
 
 void ClipboardWindow::load_window_geometry() {
@@ -420,30 +436,15 @@ void ClipboardWindow::setup_ui() {
     setAttribute(Qt::WA_TranslucentBackground);
     resize(saved_width_, saved_height_);
 
-    container = new QFrame(this);
-    container->setStyleSheet(R"(
-            QFrame#mainContainer {
-                background: #FFFFFF;
-                border: 1px solid #E0E0E0;
-                border-radius: 4px;
-            }
-            QToolTip {
-                background: #FFFFFF;
-                color: #333333;
-                border: 1px solid #E0E0E0;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-            }
-        )");
+    container = new SurfaceFrame(false, this);
     container->setObjectName("mainContainer");
 
     auto *main_layout = new QVBoxLayout(this);
-    main_layout->setContentsMargins(0, 0, 0, 0);
+    main_layout->setContentsMargins(scaled(20), scaled(16), scaled(20), scaled(26));
     main_layout->addWidget(container);
 
     content_layout = new QHBoxLayout(container);
-    content_layout->setContentsMargins(0, 0, 0, 0);
+    content_layout->setContentsMargins(scaled(10), scaled(10), scaled(10), scaled(10));
     content_layout->setSpacing(0);
 
     left_widget = new QWidget;
@@ -453,9 +454,9 @@ void ClipboardWindow::setup_ui() {
     left_layout->setSpacing(0);
 
     list_widget = new QListWidget;
-    list_widget->setStyleSheet(R"(
+    apply_style_sheet(list_widget, R"(
             QListWidget {
-                background: #FFFFFF;
+                background: transparent;
                 border: none;
                 outline: none;
                 color: #333333;
@@ -526,8 +527,22 @@ void ClipboardWindow::setup_ui() {
     tabs_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     tabs_scroll->setWidget(type_filter_bar);
     tabs_scroll->setFixedHeight(scaled(44));
-    left_layout->addWidget(tabs_scroll);
-    left_layout->addWidget(list_widget, 1);
+    tabs_scroll->viewport()->setAutoFillBackground(false);
+    auto *tabs_row = new QWidget;
+    tabs_row->setObjectName("clipboardTabsRow");
+    auto *tabs_row_layout = new QHBoxLayout(tabs_row);
+    tabs_row_layout->setContentsMargins(0, 0, 0, 0);
+    tabs_row_layout->setSpacing(0);
+    tabs_row_layout->addWidget(tabs_scroll, 1);
+    left_layout->addWidget(tabs_row);
+    list_surface_ = new SurfaceFrame(true);
+    list_surface_->setObjectName("clipboardListSurface");
+    auto *list_surface_layout = new QVBoxLayout(list_surface_);
+    list_surface_layout->setContentsMargins(scaled(7), scaled(7), scaled(7), scaled(7));
+    list_surface_layout->setSpacing(0);
+    list_surface_layout->addWidget(list_widget);
+    list_widget->viewport()->setAutoFillBackground(false);
+    left_layout->addWidget(list_surface_, 1);
 
     time_filter_bar = new QWidget;
     time_filter_bar->setObjectName(BAR_OBJECT_NAME);
@@ -588,7 +603,7 @@ void ClipboardWindow::setup_ui() {
     bottom_layout_ = new QHBoxLayout(bottom_bar);
 
     // The search box holds its own magnifier and clear button; its rounded ground is the box, not the field.
-    search_box = new QFrame;
+    search_box = new SurfaceFrame(true);
     search_box->setObjectName("searchBox");
     auto *search_layout = new QHBoxLayout(search_box);
     search_icon = new QLabel;
@@ -629,7 +644,9 @@ void ClipboardWindow::setup_ui() {
     apply_menu_btn_style();
 
     apply_time_filter_styles();
-    left_layout->addWidget(bottom_bar);
+    left_layout->insertWidget(0, bottom_bar);
+    left_layout->removeWidget(time_filter_bar);
+    left_layout->insertWidget(1, time_filter_bar);
     content_layout->addWidget(left_widget, 1);
     apply_time_filter_styles();
 
@@ -638,7 +655,7 @@ void ClipboardWindow::setup_ui() {
     connect(group_bar, &GroupBar::group_switched, this, [this](std::optional<qint64> group_id) { on_group_switched(group_id); });
     connect(group_bar, &GroupBar::manage_groups_requested, this, [this] { on_add_group_clicked(); });
     connect(group_bar, &GroupBar::manage_items_requested, this, [this] { on_add_item_clicked(); });
-    group_bar->build(content_layout, left_widget, left_layout);
+    group_bar->build_tabs(tabs_layout, tabs_row_layout);
     apply_scale_metrics();
 
     frameless_.setup_mouse_tracking_recursive(this);
@@ -697,7 +714,6 @@ void ClipboardWindow::show_main_menu() {
         options.on_restore_clipboard = [this] { plugins::restore_clipboard(this, manager); };
     }
     options.on_clear_history = [this] { on_clear_clicked(); };
-    options.on_set_group_bar_position = [this](const QString &position) { set_group_bar_position(position); };
     options.open_position = config->get_clipboard_open_position();
     options.on_set_open_position = [this](const QString &position) { config->set_clipboard_open_position(position); };
     options.multi_paste_separator = config->get_clipboard_multi_paste_separator();
@@ -874,7 +890,7 @@ void ClipboardWindow::update_search_background(const QString &text) {
     clear_search_btn->setVisible(has_text);
 }
 
-void ClipboardWindow::apply_search_box_style(bool has_text) { search_box->setStyleSheet(ThemeStyleGenerator(current_theme).generate_search_box_style(has_text)); }
+void ClipboardWindow::apply_search_box_style(bool has_text) { apply_style_sheet(search_box, ThemeStyleGenerator(current_theme).generate_search_box_style(has_text)); }
 
 void ClipboardWindow::apply_search_icon() {
     const QSize size(scaled(16), scaled(16));
@@ -882,13 +898,13 @@ void ClipboardWindow::apply_search_icon() {
 }
 
 void ClipboardWindow::apply_clear_search_btn_style() {
-    clear_search_btn->setStyleSheet(ThemeStyleGenerator(current_theme).generate_clear_search_btn_style());
+    apply_style_sheet(clear_search_btn, ThemeStyleGenerator(current_theme).generate_clear_search_btn_style());
     clear_search_btn->setIcon(tinted_icon(FluentIcon::Cancel, current_theme.colors.text_tertiary));
     clear_search_btn->setIconSize(QSize(scaled(10), scaled(10)));
 }
 
 void ClipboardWindow::apply_menu_btn_style() {
-    menu_btn->setStyleSheet(ThemeStyleGenerator(current_theme).generate_menu_btn_style());
+    apply_style_sheet(menu_btn, ThemeStyleGenerator(current_theme).generate_menu_btn_style());
     menu_btn->setIcon(tinted_icon(FluentIcon::Setting, current_theme.colors.text_secondary));
     menu_btn->setIconSize(QSize(scaled(16), scaled(16)));
 }
@@ -907,24 +923,24 @@ void ClipboardWindow::mark_items_to(qint64 item_id) { selection_manager->mark_ra
 void ClipboardWindow::apply_time_filter_styles() {
     const ThemeStyleGenerator generator(current_theme);
     if (time_filter_toggle_btn) {
-        time_filter_toggle_btn->setStyleSheet(generator.generate_filter_toggle_btn_style());
+        apply_style_sheet(time_filter_toggle_btn, generator.generate_filter_toggle_btn_style());
         // Open, the funnel takes the accent along with its background.
         const auto &colors = current_theme.colors;
-        time_filter_toggle_btn->setIcon(tinted_icon(FluentIcon::Filter, time_filter_toggle_btn->isChecked() ? colors.text_accent : colors.text_secondary));
+        time_filter_toggle_btn->setIcon(tinted_icon(FluentIcon::DateTime, time_filter_toggle_btn->isChecked() ? colors.text_accent : colors.text_secondary));
         time_filter_toggle_btn->setIconSize(QSize(scaled(16), scaled(16)));
     }
     if (start_date_edit) {
         const QString date_style = generator.generate_time_filter_date_edit_style();
         const QString calendar_style = generator.generate_time_filter_calendar_style();
-        start_date_edit->setStyleSheet(date_style);
-        end_date_edit->setStyleSheet(date_style);
-        start_date_edit->calendarWidget()->setStyleSheet(calendar_style);
-        end_date_edit->calendarWidget()->setStyleSheet(calendar_style);
+        apply_style_sheet(start_date_edit, date_style);
+        apply_style_sheet(end_date_edit, date_style);
+        apply_style_sheet(start_date_edit->calendarWidget(), calendar_style);
+        apply_style_sheet(end_date_edit->calendarWidget(), calendar_style);
     }
     if (time_filter_separator)
         set_own_style(time_filter_separator,
                       QString("background: transparent; border: none; color: %1; font-size: %2px;").arg(current_theme.colors.text_secondary).arg(scaled(12)));
-    if (apply_time_filter_btn) apply_time_filter_btn->setStyleSheet(generator.generate_time_filter_action_btn_style(true));
+    if (apply_time_filter_btn) apply_style_sheet(apply_time_filter_btn, generator.generate_time_filter_action_btn_style(true));
     if (!type_filter_tabs.isEmpty()) {
         const auto &c = current_theme.colors;
         const QString style = QString("QToolButton { background: transparent; border: none; border-radius: %1px; padding: 0 %2px; color: %3; font-size: %4px; }"
@@ -932,9 +948,9 @@ void ClipboardWindow::apply_time_filter_styles() {
                                       "QToolButton:disabled { color: %8; } QToolButton:checked:disabled { color: %7; }")
                                   .arg(scaled(9)).arg(scaled(8)).arg(c.text_secondary).arg(scaled(12))
                                   .arg(c.bg_hover, c.bg_selected, c.text_accent, c.text_disabled);
-        for (auto *tab : type_filter_tabs) tab->setStyleSheet(style);
+        for (auto *tab : type_filter_tabs) apply_style_sheet(tab, style);
         if (auto *scroll = findChild<QScrollArea *>("typeFilterScroll")) {
-            scroll->setStyleSheet(QString("QScrollArea#typeFilterScroll { background: transparent; border: none; }"
+            apply_style_sheet(scroll, QString("QScrollArea#typeFilterScroll { background: transparent; border: none; }"
                                           "QScrollBar:horizontal { background: transparent; height: %1px; margin: 0; }"
                                           "QScrollBar::handle:horizontal { background: %2; border-radius: %3px; min-width: %4px; }"
                                           "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
@@ -943,7 +959,7 @@ void ClipboardWindow::apply_time_filter_styles() {
         }
         refresh_type_filter_button();
     }
-    if (clear_time_filter_btn) clear_time_filter_btn->setStyleSheet(generator.generate_time_filter_close_btn_style());
+    if (clear_time_filter_btn) apply_style_sheet(clear_time_filter_btn, generator.generate_time_filter_close_btn_style());
 }
 
 void ClipboardWindow::clear_search() {
@@ -958,23 +974,23 @@ void ClipboardWindow::update_type_filter_button(int index) {
 
 void ClipboardWindow::refresh_type_filter_button() {
     if (type_filter_tabs.isEmpty()) return;
-    const auto rule = controller->current_filter_rule();
-    const auto fixed = rule ? rule->kind : std::nullopt;
-    const int index = fixed ? std::max<int>(0, type_filter_kinds().indexOf(*fixed)) : type_filter_index;
     for (int i = 0; i < type_filter_tabs.size(); ++i) {
-        type_filter_tabs[i]->setChecked(i == index);
-        type_filter_tabs[i]->setEnabled(!fixed);
-        type_filter_tabs[i]->setToolTip(fixed ? tr_text("Fixed by this filter group") : QString());
+        type_filter_tabs[i]->setChecked(!controller->current_group_id && i == type_filter_index);
+        type_filter_tabs[i]->setEnabled(true);
+        type_filter_tabs[i]->setToolTip(QString());
     }
 }
 
 void ClipboardWindow::set_type_filter(int index) {
+    if (controller->current_group_id) group_bar->switch_to_group(std::nullopt);
     update_type_filter_button(index);
     const QString kind = type_filter_kinds().value(index);
     controller->set_content_type_filter(kind.isEmpty() ? std::nullopt : std::optional(kind));
 }
 
 void ClipboardWindow::on_group_switched(std::optional<qint64> group_id) {
+    type_filter_index = 0;
+    controller->set_content_type_filter(std::nullopt);
     group_bar->switch_to_group(group_id);
     refresh_type_filter_button();
     list_widget->viewport()->update();
@@ -1678,7 +1694,10 @@ void ClipboardWindow::check_and_hide() {
     hide();
 }
 
-bool ClipboardWindow::is_draggable_area(QObject *widget) const { return group_bar && group_bar->bar_widget && widget == group_bar->bar_widget; }
+bool ClipboardWindow::is_draggable_area(QObject *widget) const {
+    return widget == bottom_bar || widget == type_filter_bar || widget->objectName() == "clipboardTabsRow" ||
+           (group_bar && widget == group_bar->bar_widget);
+}
 
 bool ClipboardWindow::is_date_filter_widget(QObject *obj) const {
     for (QDateEdit *widget : {start_date_edit, end_date_edit}) {
@@ -1737,6 +1756,22 @@ void ClipboardWindow::keyPressEvent(QKeyEvent *event) {
         }
     }
     QWidget::keyPressEvent(event);
+}
+
+void ClipboardWindow::paintEvent(QPaintEvent *) {
+    if (!container) return;
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    const QRectF body = QRectF(container->geometry()).translated(0, scaled(5));
+    const int spread = scaled(14);
+    const bool dark = QColor(current_theme.colors.bg_primary).lightnessF() < 0.5;
+    const auto colors=material_palette(QColor(material_tokens(this).accent),dark);
+    for (int i = spread; i > 0; --i) {
+        QColor shadow=colors.shadow;shadow.setAlpha(dark?8:7);
+        painter.setBrush(shadow);
+        painter.drawRoundedRect(body.adjusted(-i, -i, i, i), scaled(16) + i, scaled(16) + i);
+    }
 }
 
 void ClipboardWindow::resizeEvent(QResizeEvent *event) {

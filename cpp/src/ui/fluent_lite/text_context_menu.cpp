@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "ui/fluent_lite/text_context_menu.h"
 #include "core/i18n.h"
 #include "ui/fluent_lite/theme.h"
@@ -49,7 +50,7 @@ void style_popup_menu(QMenu *menu, const UIThemeTokens &tokens) {
     menu->setAttribute(Qt::WA_StyledBackground, true);
     menu->setAutoFillBackground(true);
     menu->setPalette(UIThemeManager::build_palette(tokens));
-    menu->setStyleSheet(QString(R"(
+    apply_style_sheet(menu, QString(R"(
         QMenu {
             color: %1;
             background-color: %2;

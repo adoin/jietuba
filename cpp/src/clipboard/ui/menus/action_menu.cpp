@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "clipboard/ui/menus/action_menu.h"
 #include <QMenu>
 #include <QWidget>
@@ -11,7 +12,7 @@ ClipboardActionMenu::ClipboardActionMenu(QWidget *parent, const QString &menu_st
 void ClipboardActionMenu::show_actions(QWidget *anchor_widget, const QPoint &pos, const QList<MenuAction> &actions) {
     if (actions.isEmpty()) return;
     QMenu menu(parent_);
-    menu.setStyleSheet(menu_style_);
+    apply_style_sheet(&(menu), menu_style_);
     populate_menu(&menu, actions);
     menu.exec(anchor_widget->mapToGlobal(pos));
 }
@@ -24,7 +25,7 @@ void ClipboardActionMenu::populate_menu(QMenu *menu, const QList<MenuAction> &ac
         }
         if (!action_data.children.isEmpty()) {
             QMenu *submenu = menu->addMenu(translate_label(action_data));
-            submenu->setStyleSheet(menu_style_);
+            apply_style_sheet(submenu, menu_style_);
             populate_menu(submenu, action_data.children);
             submenu->menuAction()->setEnabled(action_data.enabled);
             continue;

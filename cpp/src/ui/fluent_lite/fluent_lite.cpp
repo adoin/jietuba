@@ -1,11 +1,14 @@
 #include "ui/fluent_lite/fluent_lite.h"
 #include "core/ui_scale.h"
+#include "core/material_style.h"
+#include "core/theme.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QStyleOptionButton>
 
 namespace jietuba {
 CheckBox::CheckBox(const QString &text, QWidget *parent) : QCheckBox(text, parent) {
+    setProperty("_materialNative",true);
     _apply_theme();
     connect(get_ui_theme(), &UIThemeManager::theme_changed, this, [this] { _apply_theme(); });
 }
@@ -39,11 +42,9 @@ void CheckBox::paintEvent(QPaintEvent *) {
     const bool checked = isChecked();
     const auto box = QRectF(indicator).adjusted(0.5, 0.5, -0.5, -0.5);
     const double radius = widget_scaled(this, 4);
-    painter.setPen(QColor::fromString(checked || underMouse() ? ACCENT : tokens.border_hover));
-    painter.setBrush(QColor::fromString(checked ? ACCENT : tokens.input_background));
-    painter.drawRoundedRect(box, radius, radius);
+    paint_material_surface(painter, box, radius, QColor::fromString(checked ? get_ui_theme()->tokens().accent : tokens.input_background), checked ? MaterialDepth::Raised : MaterialDepth::Recessed);
     if (checked) {
-        QPen pen(QColor("#FFFFFF"), std::max(1.5, box.width() / 9));
+        QPen pen(contrast_ink(QColor(tokens.accent)), std::max(1.5, box.width() / 9));
         pen.setCapStyle(Qt::RoundCap);
         pen.setJoinStyle(Qt::RoundJoin);
         painter.setPen(pen);

@@ -86,7 +86,24 @@ void GroupBar::build(QHBoxLayout *content_layout, QWidget *left_widget, QVBoxLay
     QTimer::singleShot(0, this, [this] { refresh_buttons(); });
 }
 
+void GroupBar::build_tabs(QBoxLayout *tabs_layout, QBoxLayout *actions_layout) {
+    inline_tabs_ = true;
+    position = "top";
+    close_btn->hide();
+    clipboard_btn->hide();
+    group_buttons_layout = new QHBoxLayout(group_buttons_widget);
+    group_buttons_layout->setContentsMargins(0, 0, 0, 0);
+    group_buttons_layout->setSpacing(scaled(2));
+    tabs_layout->addWidget(group_buttons_widget);
+    bar_layout = new QHBoxLayout(this);
+    bar_layout->setContentsMargins(scaled(2), 0, scaled(2), 0);
+    bar_layout->addWidget(add_group_btn);
+    actions_layout->addWidget(this);
+    refresh_buttons();
+}
+
 void GroupBar::set_position(const QString &new_position) {
+    if (inline_tabs_) return;
     if (new_position == position) return;
     position = new_position;
     build_bar();
@@ -94,6 +111,7 @@ void GroupBar::set_position(const QString &new_position) {
 }
 
 void GroupBar::apply_scale() {
+    if (inline_tabs_) { apply_button_look(); return; }
     build_bar();
     QTimer::singleShot(0, this, [this] { refresh_buttons(); });
 }
@@ -105,6 +123,23 @@ void GroupBar::set_theme(const Theme &theme) {
 
 void GroupBar::apply_button_look() {
     const auto &colors = current_theme_.colors;
+    if (inline_tabs_) {
+        setFixedSize(scaled(38), scaled(38));
+        add_group_btn->setFixedSize(scaled(32), scaled(32));
+        add_group_btn->setIconSize(QSize(scaled(18), scaled(18)));
+        add_group_btn->setIcon(tinted_icon(ResourceManager::get_icon_path("add.svg"), colors.accent_primary));
+        apply_style_sheet(add_group_btn, icon_btn_style());
+        const QString style = QString("QPushButton { background: transparent; border: none; border-radius: %1px; padding: 0 %2px; color: %3; font-size: %4px; } QPushButton:hover { background: %5; } QPushButton:checked { background: %6; color: %7; }")
+            .arg(scaled(9)).arg(scaled(8)).arg(colors.text_secondary).arg(scaled(12)).arg(colors.bg_hover, colors.bg_selected, colors.text_accent);
+        for (auto *button : group_buttons) {
+            button->setText(button->property("group_name").toString());
+            button->setFixedHeight(scaled(30));
+            apply_style_sheet(button, style);
+            button->setMinimumWidth(button->fontMetrics().horizontalAdvance(button->text()) + scaled(20));
+            button->set_indicator(std::nullopt, {});
+        }
+        return;
+    }
     const bool top = position == "top";
     // The buttons fill the bar across its thickness, less the hairline on its inner edge.
     const int across = scaled(BAR) - 1;
@@ -116,26 +151,38 @@ void GroupBar::apply_button_look() {
     emoji_buttons.append(group_buttons);
     for (auto *btn : emoji_buttons) {
         btn->setFixedSize(cell);
-        btn->setStyleSheet(emoji_style);
+        apply_style_sheet(btn, emoji_style);
         btn->set_indicator(edge, accent);
     }
     const QString icon_style = icon_btn_style();
     const QSize icon_size(scaled(14), scaled(14));
     for (auto *btn : {close_btn, add_group_btn}) {
         btn->setFixedSize(cell);
-        btn->setStyleSheet(icon_style);
+        apply_style_sheet(btn, icon_style);
         btn->setIconSize(icon_size);
     }
     close_btn->setIcon(tinted_icon(FluentIcon::Cancel, colors.text_secondary));
     // Accent colored and larger than close: the plus is how most people find out groups exist.
     add_group_btn->setIconSize(QSize(scaled(18), scaled(18)));
     add_group_btn->setIcon(tinted_icon(ResourceManager::get_icon_path("add.svg"), colors.accent_primary));
-    if (separator_) separator_->setStyleSheet(QString("background: %1;").arg(ThemeStyleGenerator(current_theme_).divider_color()));
+    if (separator_) apply_style_sheet(separator_, QString("background: %1;").arg(ThemeStyleGenerator(current_theme_).divider_color()));
 }
 
 void GroupBar::refresh_buttons() {
     clear_group_buttons_layout();
     clipboard_btn->setChecked(!controller_->current_group_id);
+
+    if (inline_tabs_) {
+        for (const auto &group : controller_->get_groups()) {
+            if (group.group_type == GroupType::HIDDEN) continue;
+            auto *button = make_group_btn(group);
+            button->setProperty("group_name", group.name);
+            group_buttons_layout->addWidget(button);
+            group_buttons.append(button);
+        }
+        apply_button_look();
+        return;
+    }
 
     const bool is_top = position == "top";
     const int bar_size = is_top ? bar_widget->width() : bar_widget->height();
@@ -155,7 +202,7 @@ void GroupBar::refresh_buttons() {
         overflow_btn->setCursor(Qt::PointingHandCursor);
         overflow_btn->setFocusPolicy(Qt::NoFocus);
         overflow_btn->setToolTip(tr_text("More groups ({n})").replace("{n}", QString::number(hidden_groups.size())));
-        overflow_btn->setStyleSheet(overflow_btn_style());
+        apply_style_sheet(overflow_btn, overflow_btn_style());
         connect(overflow_btn, &QPushButton::clicked, this, [this, hidden = hidden_groups] { show_overflow_group_menu(hidden); });
         group_buttons_layout->addWidget(overflow_btn);
     }
@@ -411,7 +458,7 @@ void GroupBar::switch_adjacent_group(int delta) {
 void GroupBar::show_overflow_group_menu(const QList<Group> &hidden_groups) {
     if (hidden_groups.isEmpty()) return;
     QMenu menu(this);
-    menu.setStyleSheet(menu_style());
+    apply_style_sheet(&(menu), menu_style());
     for (const auto &group : hidden_groups) {
         const QString icon = group.icon && !group.icon->isEmpty() ? *group.icon : QString::fromUtf8("📁");
         auto *action = new QAction(icon + "  " + group.name, &menu);
@@ -470,6 +517,7 @@ void GroupBar::edit_group(qint64 group_id) {
 
 void GroupBar::on_manage_data_changed() {
     // Data changes in the manage window, passed up to the clipboard window.
-    if (auto *window = qobject_cast<ClipboardWindow *>(parent())) window->on_manage_data_changed();
+    for (auto *widget = parentWidget(); widget; widget = widget->parentWidget())
+        if (auto *window = qobject_cast<ClipboardWindow *>(widget)) { window->on_manage_data_changed(); break; }
 }
 }

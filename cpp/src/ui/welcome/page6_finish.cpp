@@ -155,7 +155,7 @@ public:
     using IllustrationArea::IllustrationArea;
     // The badge floats on the page rather than inside a large empty card.
     void apply_welcome_theme() override {
-        setStyleSheet(R"(
+        apply_style_sheet(this, R"(
             #IllustrationArea {
                 background: transparent;
                 border: none;

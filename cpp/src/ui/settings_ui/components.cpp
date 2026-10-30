@@ -1,4 +1,5 @@
 #include "ui/settings_ui/components.h"
+#include "core/material_style.h"
 #include "core/resource_manager.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
@@ -198,10 +199,8 @@ void SectionCard::paintEvent(QPaintEvent *) {
     const auto &t = get_ui_theme()->tokens();
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(css_color(t.border));
-    painter.setBrush(css_color(t.surface));
     const int radius = dialog_scaled(15);
-    painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    paint_material_surface(painter,QRectF(rect()).adjusted(0.5,0.5,-0.5,-0.5),radius,css_color(t.surface),MaterialDepth::Raised);
 }
 
 void add_separated_row(QVBoxLayout *layout, QWidget *widget) {

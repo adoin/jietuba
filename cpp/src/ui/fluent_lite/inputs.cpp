@@ -41,7 +41,7 @@ QString input_qss(const QWidget *widget) {
     )")
         .arg(s(INPUT_CONTENT_HEIGHT)).arg(s(INPUT_PADDING_V)).arg(s(INPUT_PADDING_H))
         .arg(t.text, t.input_background, t.border).arg(s(INPUT_RADIUS)).arg(s(13))
-        .arg(FONT_FAMILY, ACCENT, t.border_hover, t.surface_strong, t.text_disabled, t.surface_subtle)
+        .arg(FONT_FAMILY, get_ui_theme()->tokens().accent, t.border_hover, t.surface_strong, t.text_disabled, t.surface_subtle)
         .arg(s(24)).arg(t.popup_background).arg(s(5)).arg(t.accent_soft).arg(s(3)).arg(s(8)).arg(s(18));
 }
 

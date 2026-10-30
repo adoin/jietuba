@@ -132,8 +132,8 @@ void RecordToolbar::set_button_icon(QPushButton *button, const QString &svg) {
 
 void RecordToolbar::apply_scale_sizes() {
     setFixedHeight(scaled(BASE_HEIGHT));
-    container_->setStyleSheet(toolbar_style());
-    result_container_->setStyleSheet(toolbar_style());
+    apply_style_sheet(container_, toolbar_style());
+    apply_style_sheet(result_container_, toolbar_style());
     const int inset = python_floordiv(scaled(BASE_HEIGHT) - scaled(BASE_BTN_H), 2);
     row_layout_->setContentsMargins(scaled(8), inset, scaled(8), inset);
     row_layout_->setSpacing(scaled(6));
@@ -145,16 +145,16 @@ void RecordToolbar::apply_scale_sizes() {
         button->setIconSize(QSize(icon_sz, icon_sz));
         button->setIcon(svg_icon(svg, icon_sz));
     }
-    time_label_->setStyleSheet(time_label_qss());
+    apply_style_sheet(time_label_, time_label_qss());
     fps_btn_->apply_scale();
     mode_btn_->apply_scale();
     for (auto *button : result_buttons_) {
         button->setMinimumHeight(btn_h);
-        button->setStyleSheet(QString("padding: 0 %1px;").arg(scaled(9)));
+        apply_style_sheet(button, QString("padding: 0 %1px;").arg(scaled(9)));
     }
     result_layout_->setContentsMargins(scaled(12), inset, scaled(12), inset);
     result_layout_->setSpacing(scaled(8));
-    result_label_->setStyleSheet(QString("color: #3e7960; font-size: %1px;").arg(scaled(12)));
+    apply_style_sheet(result_label_, QString("color: #3e7960; font-size: %1px;").arg(scaled(12)));
     for (auto *sep : separators_) sep->setFixedSize(1, scaled(BASE_SEP_HEIGHT));
     const int handle_icon = scaled(BASE_HANDLE_ICON);
     move_handle_->setFixedSize(scaled(BASE_HANDLE_WIDTH), btn_h);
@@ -311,7 +311,7 @@ void RecordToolbar::build_ui() {
     };
     for (const auto &[text, signal] : result_actions) {
         auto *button = new QPushButton(tr_text(text));
-        button->setStyleSheet(QString("padding: 0 %1px;").arg(scaled(9)));
+        apply_style_sheet(button, QString("padding: 0 %1px;").arg(scaled(9)));
         connect(button, &QPushButton::clicked, this, signal);
         result_buttons_.push_back(button);
         result_layout_->addWidget(button);
@@ -592,7 +592,7 @@ void RecordToolbar::reset_state() {
     move_handle_->setCursor(QCursor(Qt::SizeAllCursor));
     move_handle_->setToolTip("");
     time_label_->setText("00:00");
-    time_label_->setStyleSheet(time_label_qss());
+    apply_style_sheet(time_label_, time_label_qss());
     adjustSize();
 }
 

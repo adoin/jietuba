@@ -4,6 +4,7 @@
 #include "core/resource_manager.h"
 #include "core/ui_scale.h"
 #include "core/ui_theme.h"
+#include "core/material_style.h"
 #include "settings/tool_settings.h"
 #include "ui/fluent_lite/inputs.h"
 #include "ui/fluent_lite/theme.h"
@@ -59,9 +60,7 @@ protected:
         p.drawEllipse(-18, static_cast<int>(h * 0.62), static_cast<int>(w * 0.42), static_cast<int>(w * 0.42));
 
         const QRectF card(12, 14, std::max(80, w - 24), std::max(120, h - 28));
-        p.setPen(QPen(QColor(theme.border), 1));
-        p.setBrush(QColor(theme.panel));
-        p.drawRoundedRect(card, 12, 12);
+        paint_material_surface(p, card, 12, QColor(theme.panel), MaterialDepth::Raised);
 
         // The workspace title bar.
         const int top_h = 30;
@@ -100,9 +99,7 @@ protected:
             const auto &module = MODULES[idx];
             const int col = idx % 2, row = idx / 2;
             const QRectF tile(content.x() + col * (tile_w + gap), grid_y + row * (tile_h + gap), tile_w, tile_h);
-            p.setPen(QPen(QColor(theme.border), 1));
-            p.setBrush(QColor(theme.panel));
-            p.drawRoundedRect(tile, 8, 8);
+            paint_material_surface(p, tile, 8, QColor(theme.panel), MaterialDepth::Recessed);
             const double icon_size = std::min(26.0, tile_h - 12);
             const QRectF icon(tile.x() + 8, tile.center().y() - icon_size / 2, icon_size, icon_size);
             p.setPen(Qt::NoPen);

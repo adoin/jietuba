@@ -454,7 +454,7 @@ QString notice_html(SettingsDialog *dialog, const std::optional<ProviderMetadata
     }
     if (!metadata->help_url.isEmpty()) {
         const QString label = !metadata->help_label.isEmpty() ? dialog->tr_text(metadata->help_label.toUtf8().constData()) : QString();
-        parts.append(QString("<a href=\"%1\" style=\"color:%2;\">%3</a>").arg(metadata->help_url, ACCENT, !label.isEmpty() ? label : metadata->help_url));
+        parts.append(QString("<a href=\"%1\" style=\"color:%2;\">%3</a>").arg(metadata->help_url, get_ui_theme()->tokens().accent, !label.isEmpty() ? label : metadata->help_url));
     }
     return parts.join(" ");
 }
@@ -566,7 +566,7 @@ QWidget *create_translation_page(SettingsDialog *dialog) {
     auto *config = dialog->config_manager;
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
     auto *page = new QWidget;
     set_own_style(page, "background: transparent;");
     auto *layout = new QVBoxLayout(page);

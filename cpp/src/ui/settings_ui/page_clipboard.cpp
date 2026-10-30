@@ -450,7 +450,7 @@ void clear_clipboard_history(SettingsDialog *dialog) {
 QWidget *create_clipboard_page(SettingsDialog *dialog) {
     auto *scroll = page_scroll_area(dialog);
     scroll->setWidgetResizable(true);
-    scroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    apply_style_sheet(scroll, "QScrollArea { border: none; background: transparent; }");
 
     auto *view = new QWidget;
     set_own_style(view, "background: transparent;");
@@ -539,7 +539,7 @@ QWidget *create_clipboard_page(SettingsDialog *dialog) {
     layout->addWidget(grp_data);
 
     auto *hint = new CaptionLabel(dialog->tr_text("💡 Hint: Set clipboard hotkey in Shortcuts settings."), view);
-    hint->setStyleSheet("padding: 5px;");
+    apply_style_sheet(hint, "padding: 5px;");
     layout->addWidget(hint);
 
     layout->addStretch();

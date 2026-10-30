@@ -1,3 +1,4 @@
+#include "core/ui_theme.h"
 #include "gif/playback_toolbar.h"
 #include "core/i18n.h"
 #include "core/ui_scale.h"
@@ -147,12 +148,12 @@ void PlaybackToolbar::set_button_icon(QPushButton *button, const QString &svg) {
 }
 
 void PlaybackToolbar::apply_scale() {
-    container_->setStyleSheet(toolbar_style());
+    apply_style_sheet(container_, toolbar_style());
     vbox_->setContentsMargins(scaled(10), scaled(6), scaled(10), scaled(6));
     vbox_->setSpacing(scaled(4));
     row_->setSpacing(scaled(6));
     slider_->apply_scale();
-    time_label_->setStyleSheet(QString("color: #666; font-size: %1px;").arg(scaled(12)));
+    apply_style_sheet(time_label_, QString("color: #666; font-size: %1px;").arg(scaled(12)));
     speed_label_->apply_scale();
     const int btn_w = scaled(BASE_BTN_W), btn_h = scaled(BASE_BTN_H);
     const int icon = scaled(BASE_ICON);

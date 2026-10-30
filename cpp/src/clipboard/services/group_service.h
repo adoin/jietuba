@@ -28,8 +28,6 @@ QString get_group_display_icon(const std::optional<QString> &custom_icon, int gr
 QString get_toggled_default_group_icon(const QString &current_icon, int group_type, const std::optional<FilterRule> &filter_rule = std::nullopt);
 bool group_name_exists(const QList<Group> &groups, const QString &name, std::optional<qint64> exclude_group_id = std::nullopt);
 QString make_unique_group_name(const QString &base_name, const QSet<QString> &used_names);
+QString group_name_without_type_collision(const QString &name, const QList<Group> &groups, std::optional<qint64> exclude_group_id = std::nullopt);
 QString build_delete_group_confirm_message(const std::function<QString(const char *)> &translate);
-// Once per install, a history with no groups gets a normal group to move items into and an image filter group,
-// so the group bar shows what groups are for. Deleting them later does not bring them back.
-void seed_starter_groups(ClipboardManager &manager, ToolSettingsManager *config, const std::function<QString(const char *)> &translate);
 }

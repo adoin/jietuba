@@ -86,19 +86,19 @@ void FloatingToolbar::apply_scale() {
     setMinimumWidth(scaled(BASE_MIN_WIDTH));
     row_layout_->setContentsMargins(0, 0, scaled(6), 0);
     left_handle->apply_scale();
-    set_own_style(size_label, QString("color: %1; font-size: %2pt;").arg(CONTROL_INK.name()).arg(scaled(9)));
+    set_own_style(size_label, QString("color: %1; font-size: %2pt;").arg(control_ink().name()).arg(scaled(9)));
     size_label->ensurePolished();
     // Sized for the longest value so growing numbers neither widen nor move the toolbar.
     size_label->setFixedWidth(size_label->fontMetrics().horizontalAdvance(QString::fromUtf8("88888 × 88888")) + scaled(8));
     direction_btn->setFixedHeight(scaled(BASE_PILL_HEIGHT));
-    direction_btn->setStyleSheet(direction_btn_style());
+    apply_style_sheet(direction_btn, direction_btn_style());
     direction_btn->setIconSize(QSize(scaled(14), scaled(14)));
     const int btn_w = scaled(BASE_BTN_WIDTH), btn_h = scaled(BASE_HEIGHT);
     const int icon_sz = scaled(BASE_ICON);
     for (auto *button : icon_buttons_) {
         button->setFixedSize(btn_w, btn_h);
         button->setIconSize(QSize(icon_sz, icon_sz));
-        button->setStyleSheet(icon_btn_style());
+        apply_style_sheet(button, icon_btn_style());
     }
     adjustSize();
     // A new size needs re-docking beside the capture window, unless the user moved it.
@@ -108,7 +108,7 @@ void FloatingToolbar::apply_scale() {
 void FloatingToolbar::setup_toolbar_ui() {
     auto *container = new QWidget;
     container->setObjectName("toolbar_container");
-    container->setStyleSheet("QWidget#toolbar_container { background: transparent; }");
+    apply_style_sheet(container, "QWidget#toolbar_container { background: transparent; }");
 
     auto *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(0, 0, 0, 0);
@@ -183,13 +183,13 @@ QString FloatingToolbar::direction_btn_style() {
                 background-color: %8;
             }
         )")
-        .arg(rgba(CONTROL_FILL), CONTROL_INK.name())
+        .arg(rgba(control_fill()), control_ink().name())
         .arg(scaled(10))
         .arg(scaled(6))
         .arg(scaled(9))
         .arg(python_floordiv(scaled(BASE_PILL_HEIGHT), 2))
         .arg(scaled(50))
-        .arg(rgba(CONTROL_FILL_HOVER));
+        .arg(rgba(control_fill_hover()));
 }
 
 QString FloatingToolbar::icon_btn_style() {

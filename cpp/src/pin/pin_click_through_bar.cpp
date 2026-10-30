@@ -81,7 +81,7 @@ void PinClickThroughBar::apply_scale() {
     slider_->setFixedWidth(scaled(BASE_SLIDER_WIDTH));
     value_->setFixedWidth(scaled(34));
     const auto theme = get_theme().theme_color_hex();
-    slider_->setStyleSheet(QString(R"(
+    apply_style_sheet(slider_, QString(R"(
             QSlider::groove:horizontal {
                 height: %1px; background: #d9dce3; border-radius: %2px;
             }
@@ -94,9 +94,9 @@ void PinClickThroughBar::apply_scale() {
             }
         )").arg(scaled(4)).arg(scaled(2)).arg(scaled(12)).arg(-scaled(4)).arg(theme).arg(scaled(6)));
     const auto text_style = QString("font-size: %1px; background: transparent;").arg(scaled(12));
-    set_own_style(title_, QString("color: %1; %2").arg(CONTROL_INK.name(), text_style));
-    set_own_style(value_, QString("color: %1; %2").arg(CONTROL_SUB.name(), text_style));
-    exit_button_->setStyleSheet(QString(R"(
+    set_own_style(title_, QString("color: %1; %2").arg(control_ink().name(), text_style));
+    set_own_style(value_, QString("color: %1; %2").arg(control_sub().name(), text_style));
+    apply_style_sheet(exit_button_, QString(R"(
             QPushButton { background: transparent; border: none; border-radius: %1px; }
             QPushButton:hover { background: rgba(231, 76, 60, 40); }
             QPushButton:pressed { background: rgba(231, 76, 60, 80); }

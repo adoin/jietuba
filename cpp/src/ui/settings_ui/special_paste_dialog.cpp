@@ -1,3 +1,5 @@
+#include "ui/fluent_lite/fluent_lite.h"
+#include "core/ui_theme.h"
 #include "ui/settings_ui/special_paste_dialog.h"
 #include "core/i18n.h"
 #include "core/ui_scale.h"
@@ -22,7 +24,7 @@ QString menu_tr(const char *text) { return i18n_tr(text, "ClipboardWindow"); }
 class PasteOptionRow : public DraggableRow {
 public:
     PasteOptionRow(const special_paste::PasteOption &option, bool enabled, QWidget *parent = nullptr) : DraggableRow(parent), key(option.key) {
-        check = new QCheckBox(this);
+        check = new CheckBox(QString(),this);
         check->setChecked(enabled);
         check->setAccessibleName(menu_tr(option.label));
         auto *name = new BodyLabel(menu_tr(option.label), this);
@@ -47,7 +49,7 @@ SpecialPasteDialog::SpecialPasteDialog(const QList<special_paste::Entry> &entrie
     scale_dialog_font(*this);
     setWindowTitle(tr_text("Manage Special Paste"));
     setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
-    setStyleSheet(QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
+    apply_style_sheet(this, QString("QDialog { background: %1; }").arg(ui_tokens(this).window));
 
     tabs = new SegmentedWidget(this);
     tabs->addItem("text", tr_text("Text"));
@@ -55,7 +57,7 @@ SpecialPasteDialog::SpecialPasteDialog(const QList<special_paste::Entry> &entrie
     stack_ = new QStackedWidget(this);
     for (const QString kind : {"text", "file"}) {
         auto *row_list = new ReorderableRowList(this);
-        row_list->setStyleSheet(row_list->styleSheet() + scrollbar_qss(this));
+        apply_style_sheet(row_list, row_list->styleSheet() + scrollbar_qss(this));
         stack_->addWidget(row_list);
         lists_.insert(kind, row_list);
     }

@@ -1,7 +1,7 @@
 #include "main_app.h"
+#include "ui/update_dialog.h"
 #include "core/branding.h"
 #include "clipboard/core/manager.h"
-#include "clipboard/services/group_service.h"
 #include "clipboard/ui/dialogs/manage_dialog.h"
 #include "clipboard/ui/windows/clipboard_window.h"
 #include "clipboard/ui/windows/pin_window.h"
@@ -155,6 +155,7 @@ MainApp::MainApp(int &argc, char **argv) : app(std::make_unique<QApplication>(ar
     sync_game_mode_monitor();
     update_controller = new UpdateController(this, this);
     app->setProperty("_update_controller", QVariant::fromValue<QObject *>(update_controller));
+    update_controller->set_automatic_updates(config_manager->get_automatic_updates());
     connect(app.get(), &QCoreApplication::aboutToQuit, update_controller, &UpdateController::cancel);
 
     set_trim_busy_check([this] { return capture_busy(); });
@@ -589,7 +590,6 @@ bool MainApp::set_clipboard_monitoring_enabled(bool enabled) {
             log_warning(T("剪贴板管理器不可用（pyclipboard 未安装）"), "Clipboard");
             return false;
         }
-        clipboard::seed_starter_groups(*manager, get_tool_settings_manager(), [](const char *text) { return i18n_tr(text, "ClipboardWindow"); });
         if (manager->is_monitoring()) return true;
         // Runs on the watcher thread; the signal is emitted on the GUI thread.
         manager->start_monitoring([this](const clipboard::ClipboardItem &item) {
@@ -679,6 +679,15 @@ void MainApp::toggle_screen_annotation() {
         });
     }
     screen_annotation->toggle();
+}
+
+bool MainApp::automatic_update_ready() {
+    if(starting_up() || !update_busy_reason().isEmpty() || PinManager::instance()->has_pins()) return false;
+    for(auto *widget : QApplication::topLevelWidgets()) {
+        if(widget==update_controller->dialog.data() || widget->windowType()==Qt::ToolTip) continue;
+        if(widget->isVisible()) return false;
+    }
+    return true;
 }
 
 QString MainApp::update_busy_reason() {

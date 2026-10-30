@@ -45,6 +45,7 @@ public:
 
     // Builds the bar once and inserts it into content_layout.
     void build(QHBoxLayout *content_layout, QWidget *left_widget, QVBoxLayout *left_layout);
+    void build_tabs(QBoxLayout *tabs_layout, QBoxLayout *actions_layout);
     void set_position(const QString &position);
     // Follows the toolbar and panel scale.
     void apply_scale();
@@ -105,5 +106,6 @@ private:
     QHBoxLayout *content_layout_ = nullptr;
     QWidget *left_widget_ = nullptr;
     QVBoxLayout *left_layout_ = nullptr;
+    bool inline_tabs_ = false;
 };
 }
